@@ -48,6 +48,11 @@ linked_pr:
   callers should not mutate records in place.
 - Keep duplicate-key and missing-record behavior explicit with port-level
   exceptions or return types, rather than leaking adapter-specific exceptions.
+- Keep the persistence runnable-work query distinct from the existing tracker
+  `WorkQueue` port. `WorkQueue` remains the tracker-facing read boundary for
+  external queue state; persistence repositories answer questions over Hoisa's
+  canonical current-state records after tracker/source observations have been
+  reduced into Hoisa records.
 
 ## Implementation Approach
 - Expand or add domain modules only where persistence coverage needs a typed
@@ -98,6 +103,11 @@ linked_pr:
 - Do not wire the memory adapter into a service loop or CLI command in this
   issue. It should be directly importable for tests and later application
   workflows.
+- Do not replace or remove `hoisa.ports.tracker.WorkQueue` in this issue.
+  If implementation touches `select_next_work` or queue selection helpers, keep
+  the bridge explicit: tracker ports discover source/tracker work, while
+  persistence ports select from Hoisa-owned `WorkItem` and `WorkflowState`
+  records.
 - Preserve the architecture contract:
   - domain imports no ports or adapters;
   - ports import domain records but no adapters, service, CLI, PyMongo/Motor,
@@ -133,6 +143,11 @@ linked_pr:
 - Adapter interface:
   - `hoisa.adapters.persistence.memory.InMemoryPersistenceProvider` or an
     equivalent clearly named provider that implements `PersistenceProvider`.
+- Existing tracker interface:
+  - `hoisa.ports.tracker.WorkQueue` remains a separate source/tracker queue
+    abstraction. This task may document or test the boundary if needed, but it
+    should not make tracker adapters depend on persistence adapters or vice
+    versa.
 - Test interface:
   - shared contracts live under `tests/contract/persistence/`;
   - the memory adapter is the first implementation bound to those contracts;
@@ -172,6 +187,9 @@ linked_pr:
     coverage;
   - verify no PyMongo/Motor, GitHub client, filesystem adapter, service, or CLI
     dependency enters domain or port modules.
+  - if selection code is touched, add or update focused tests that show tracker
+    `WorkQueue` and persistence runnable-work queries are separate boundaries
+    with explicit application-level coordination.
 - Required checks before PR:
   - `uv run python -m py_compile scripts/github/agent_workflow.py`
   - `uv run ruff check .`
