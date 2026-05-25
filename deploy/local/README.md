@@ -30,6 +30,9 @@ docker compose up -d
 docker compose ps
 ```
 
+MongoDB stores its local data in ignored `deploy/local/data/mongodb/`. Docker
+creates the directory if it does not already exist.
+
 Check the database from inside the container:
 
 ```bash
@@ -43,8 +46,9 @@ Stop the local service without deleting data:
 docker compose down
 ```
 
-`docker compose down -v` deletes the local private MongoDB volume. Use it only
-when intentionally discarding local Hoisa state.
+To reset the throwaway local database, stop Compose and intentionally delete
+`deploy/local/data/mongodb/`. Do not commit, paste, or share files from
+`deploy/local/data/`; they are private local state.
 
 ## Connection Shape
 
@@ -60,9 +64,10 @@ database user should be introduced by a separate approved adapter or schema
 task.
 
 The MongoDB image applies initialization credentials when the data directory is
-empty. Changing `.env` after the volume already exists does not rotate the
-stored root credentials by itself; recreate the local volume intentionally if a
-throwaway development database needs new init credentials.
+empty. Changing `.env` after `deploy/local/data/mongodb/` already exists does
+not rotate the stored root credentials by itself; recreate that throwaway local
+data directory intentionally if a development database needs new init
+credentials.
 
 ## Multi-Project Scope
 

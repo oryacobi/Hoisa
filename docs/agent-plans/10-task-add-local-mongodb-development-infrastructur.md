@@ -23,10 +23,11 @@ linked_pr:
 - Create `deploy/local/` as the local-only development runtime area, with a
   tracked Compose file and tracked example configuration but no committed real
   credentials or database state.
-- Use a single MongoDB service bound to localhost by default, backed by a
-  persistent Docker volume. The implementation should pin a current MongoDB 8
-  image tag instead of `latest`; prefer the image whose official documentation
-  supports the init behavior used by the Compose file.
+- Use a single MongoDB service bound to localhost by default, backed by an
+  ignored repo-local persistent data directory rather than a Docker named
+  volume. The implementation should pin a current MongoDB 8 image tag instead
+  of `latest`; prefer the image whose official documentation supports the init
+  behavior used by the Compose file.
 - Use placeholder values in `deploy/local/.env.example`; developers copy it to
   ignored `deploy/local/.env` for local use. Real local credentials must remain
   ignored and must not appear in issue comments, plans, fixtures, logs, or PR
@@ -46,7 +47,7 @@ linked_pr:
     the service is not exposed on all interfaces by default;
   - `MONGO_INITDB_ROOT_USERNAME`, `MONGO_INITDB_ROOT_PASSWORD`, and
     `MONGO_INITDB_DATABASE` populated from local environment values;
-  - a named persistent volume mounted at `/data/db`;
+  - `./data/mongodb` bind-mounted at `/data/db` for persistent local data;
   - a simple healthcheck using `mongosh` and an authenticated `ping`/`hello`
     command if the selected image includes `mongosh`;
   - an optional read-only `./mongo-init:/docker-entrypoint-initdb.d` mount for
@@ -61,15 +62,16 @@ linked_pr:
   - setup steps: copy `.env.example` to `.env`, replace placeholder
     credentials, run `docker compose config`, start with `docker compose up -d`,
     inspect health, connect locally, and stop with `docker compose down`;
-  - a clear warning that `docker compose down -v` deletes the local private DB;
+  - a clear warning that `deploy/local/data/mongodb/` contains local private DB
+    state and must be deleted only intentionally;
   - the connection-string shape with placeholders only;
   - a clear note that root credentials are for local database initialization,
     administration, and health validation only; any future Hoisa application
     user, role, or runtime credential should be handled by a separate approved
     adapter/schema task;
   - the note that MongoDB init credentials affect first initialization of an
-    empty data directory, so changing them later may require recreating the
-    local volume intentionally;
+    empty data directory, so changing them later may require intentionally
+    recreating `deploy/local/data/mongodb/`;
   - how one local Hoisa DB can support multiple repositories later through
     `project_id`, `target_repo_id`, provider, owner/name, and privacy fields;
   - explicit public/private boundaries for data, logs, screenshots, and support
@@ -78,7 +80,7 @@ linked_pr:
   so the init directory exists without adding schema/index behavior.
 - Update `.gitignore` only as needed to ensure:
   - `deploy/local/.env` remains ignored;
-  - local MongoDB data, bind-mounted state, secret files, and logs under
+  - local MongoDB data in `deploy/local/data/`, secret files, and logs under
     `deploy/local/` stay ignored;
   - tracked examples such as `.env.example` and README files remain visible.
 - Avoid adding Python dependencies, PyMongo/Motor imports, application code,
@@ -114,8 +116,8 @@ linked_pr:
   - copy `deploy/local/.env.example` to a temporary or ignored
     `deploy/local/.env` if Compose needs the default local env file;
   - run `docker compose config` from `deploy/local`;
-  - inspect generated config for localhost binding, a persistent volume, and no
-    non-placeholder committed credentials.
+  - inspect generated config for localhost binding, the `./data/mongodb`
+    persistent data mount, and no non-placeholder committed credentials.
   - if validation uses a real ignored `.env`, summarize the result without
     pasting expanded credentials, connection strings, or other secret-bearing
     Compose output into public PR text, logs, or issue comments.
@@ -123,8 +125,8 @@ linked_pr:
   - start with `docker compose up -d`;
   - verify the MongoDB container is healthy or responds to a `mongosh`
     `hello`/`ping` command with local placeholder credentials;
-  - stop with `docker compose down` without deleting the volume unless the test
-    deliberately used throwaway data.
+  - stop with `docker compose down` without deleting `deploy/local/data/mongodb/`
+    unless the test deliberately used throwaway data.
 - Run `git diff --check` for whitespace and tracked-file sanity.
 - Because this issue is expected to be docs/config-only, skip Python compile,
   Ruff, mypy, and pytest if no Python, generated fixtures, or tooling behavior
@@ -146,14 +148,14 @@ linked_pr:
   documentation for changing the port instead of exposing the service broadly.
 - Credential lifecycle risk: MongoDB image initialization variables only apply
   to an empty data directory for the documented image behavior. Document the
-  volume-reset implication instead of silently implying credentials can be
-  rotated by editing `.env`.
+  local data directory reset implication instead of silently implying
+  credentials can be rotated by editing `.env`.
 - Overbuilding risk: mitigate by limiting this issue to local runtime files and
   docs. No adapter, indexes, schemas, migrations, backup automation, service
   loop, or app imports belong here.
-- Operational ambiguity risk: docs should distinguish `docker compose down`
-  from `docker compose down -v` and leave backup/retention as an open question
-  for later approval-gated work.
+- Operational ambiguity risk: docs should distinguish stopping Compose from
+  deleting `deploy/local/data/mongodb/`, and leave backup/retention as an open
+  question for later approval-gated work.
 - Approval gate: review route is `Review Both`; this plan should go through
   plan review and human approval before implementation.
 
@@ -211,3 +213,5 @@ linked_pr:
   infrastructure.
 - 2026-05-25: Addressed plan review notes by clarifying root credential scope
   and redacted Compose validation reporting.
+- 2026-05-25: Adjusted implementation direction after operator feedback to
+  use an ignored persistent data directory instead of a Docker named volume.

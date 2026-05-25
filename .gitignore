@@ -31,7 +31,7 @@ data/local/
 data/private/
 *.log
 
-# Local Docker/Mongo volumes used by developer setups
+# Local Docker/Mongo runtime state used by developer setups
 deploy/local/.env
 deploy/local/.env.*
 !deploy/local/.env.example
