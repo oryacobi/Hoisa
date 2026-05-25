@@ -63,6 +63,10 @@ linked_pr:
     inspect health, connect locally, and stop with `docker compose down`;
   - a clear warning that `docker compose down -v` deletes the local private DB;
   - the connection-string shape with placeholders only;
+  - a clear note that root credentials are for local database initialization,
+    administration, and health validation only; any future Hoisa application
+    user, role, or runtime credential should be handled by a separate approved
+    adapter/schema task;
   - the note that MongoDB init credentials affect first initialization of an
     empty data directory, so changing them later may require recreating the
     local volume intentionally;
@@ -112,6 +116,9 @@ linked_pr:
   - run `docker compose config` from `deploy/local`;
   - inspect generated config for localhost binding, a persistent volume, and no
     non-placeholder committed credentials.
+  - if validation uses a real ignored `.env`, summarize the result without
+    pasting expanded credentials, connection strings, or other secret-bearing
+    Compose output into public PR text, logs, or issue comments.
 - If Docker is available locally, smoke test the runtime:
   - start with `docker compose up -d`;
   - verify the MongoDB container is healthy or responds to a `mongosh`
@@ -202,3 +209,5 @@ linked_pr:
 - 2026-05-25: Initial plan scaffold.
 - 2026-05-25: Filled implementation-ready plan for local MongoDB development
   infrastructure.
+- 2026-05-25: Addressed plan review notes by clarifying root credential scope
+  and redacted Compose validation reporting.
