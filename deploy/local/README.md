@@ -50,6 +50,23 @@ To reset the throwaway local database, stop Compose and intentionally delete
 `deploy/local/data/mongodb/`. Do not commit, paste, or share files from
 `deploy/local/data/`; they are private local state.
 
+## MongoDB Adapter Contract Tests
+
+The MongoDB persistence adapter tests are opt-in so ordinary test runs do not
+need Docker or local database credentials. Start the local service, then run the
+contracts with placeholder-shaped environment values only:
+
+```bash
+export HOISA_MONGO_TEST_URI='mongodb://<root-user>:<root-password>@127.0.0.1:27017/hoisa?authSource=admin'
+export HOISA_MONGO_TEST_DATABASE='hoisa_test_local_'
+uv run pytest tests/contract/persistence/test_mongodb_adapter.py
+```
+
+`HOISA_MONGO_TEST_DATABASE` must begin with `hoisa_test_`. The tests append a
+random suffix and delete only that generated test database. Do not paste real
+credentials, expanded URIs, or database contents into issue comments, PR text,
+or public logs.
+
 ## Connection Shape
 
 Use placeholders when documenting or sharing connection strings:

@@ -17,6 +17,7 @@ classifiers = [
 ]
 dependencies = [
     "pydantic>=2,<3",
+    "pymongo>=4.13,<5",
 ]
 
 [dependency-groups]
