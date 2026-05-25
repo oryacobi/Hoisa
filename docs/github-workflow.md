@@ -23,6 +23,52 @@ For the broader operating model, see the canonical vision in
 - Full plans live in `docs/agent-plans/<issue>-<slug>.md`; issue comments stay
   short and link to durable artifacts.
 
+## Workflow Helper
+
+Hoisa uses `scripts/github/agent_workflow.py` as the temporary Project-backed
+workflow engine until the local DB-backed service replaces it. Agents should use
+the helper for routine workflow operations instead of reconstructing state from
+GitHub screens or using connector prompts.
+
+The helper defaults to owner `oryacobi`, repo `Hoisa`, Project `Hoisa`, and
+approval assignee `oryacobi`.
+
+Common commands:
+
+```bash
+scripts/github/agent_workflow.py next          --agent <Agent> --mode auto --json
+scripts/github/agent_workflow.py next          --agent <Agent> --mode auto --no-claim --json
+scripts/github/agent_workflow.py claim         --issue <n> --agent <Agent>
+scripts/github/agent_workflow.py post-plan     --issue <n> --agent <Agent> --plan docs/agent-plans/<issue>-<slug>.md
+scripts/github/agent_workflow.py revise-plan   --issue <n> --agent <Agent> --plan docs/agent-plans/<issue>-<slug>.md
+scripts/github/agent_workflow.py approval      --issue <n>
+scripts/github/agent_workflow.py approve       --issue <n> --agent <Agent> --json
+scripts/github/agent_workflow.py request-changes --issue <n> --agent <Agent> --body '<summary>' --json
+scripts/github/agent_workflow.py request-review  --issue <n> --agent <Agent> --body '<summary>' --json
+scripts/github/agent_workflow.py review-ready    --issue <n> --agent <Agent> --body '<summary>' --json
+scripts/github/agent_workflow.py review-changes  --issue <n> --agent <Agent> --body '<summary>' --json
+scripts/github/agent_workflow.py active-work  --agent <Agent> [--identity '<label>' | --all] --json
+scripts/github/agent_workflow.py progress      --issue <n> --agent <Agent> --body '<summary>'
+scripts/github/agent_workflow.py issue-view    --issue <n> --json
+scripts/github/agent_workflow.py issue-comments --issue <n> --json
+scripts/github/agent_workflow.py issue-comment --issue <n> --agent <Agent> --body '<summary>'
+scripts/github/agent_workflow.py issue-quality --issue <n> --json
+scripts/github/agent_workflow.py commit-push   --issue <n> --message '<message>' --path <path>
+scripts/github/agent_workflow.py pr-create     --issue <n> --agent <Agent> --title '<title>' --body-file <path>
+scripts/github/agent_workflow.py pr-view       --pr <number-or-url-or-branch> --json
+scripts/github/agent_workflow.py pr-comments   --pr <target> --kind all --json
+scripts/github/agent_workflow.py pr-files      --pr <target> --json
+scripts/github/agent_workflow.py pr-diff       --pr <target>
+scripts/github/agent_workflow.py pr-checks     --pr <target> --json
+scripts/github/agent_workflow.py complete      --issue <n> --agent <Agent> --pr <target>
+```
+
+Run `next` and `claim` from a clean worktree. The helper switches to `main`,
+fetches origin, fast-forward pulls `origin/main`, creates or tracks the issue
+branch, and claims the Project item. `post-plan` and `revise-plan` commit and
+push the plan branch before posting the plan link. Use `commit-push` for scoped
+implementation commits before `pr-create`.
+
 ## Workflow Skills
 
 - `.agents/skills/github-issue-workflow/SKILL.md`: route next work, claim,

@@ -1,0 +1,49 @@
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Build and packaging outputs
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Virtual environments and local tooling
+.venv/
+venv/
+env/
+.env
+.env.*
+!.env.example
+.python-version
+
+# Local Hoisa runtime state and private working data
+.hoisa/
+data/tmp/
+data/local/
+data/private/
+*.log
+
+# Local Docker/Mongo volumes used by developer setups
+deploy/local/.env
+deploy/local/data/
+deploy/local/mongo-data/
+
+# Node/frontend caches if a UI is added later
+node_modules/
+.npm/
+.pnpm-store/
+.yarn/
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
