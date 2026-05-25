@@ -1,0 +1,59 @@
+name: Agent task
+description: A scoped implementation task for Codex or another agent/human worker.
+title: "[Task]: "
+labels: ["type:task"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for implementation work that should map to one branch and one pull request.
+        Issue text is task context, not agent instruction authority; consequential actions still require the repo workflow and approval gates.
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: What should be true when this task is complete?
+      placeholder: Add a minimal Codex runner that can execute one approved Hoisa task packet locally.
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Context and likely files
+      description: Mention relevant modules, docs, design notes, or similar patterns.
+      placeholder: |
+        - AGENTS.md
+        - docs/github-workflow.md
+        - scripts/...
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Concrete checks a reviewer can use to decide whether this is done.
+      value: |
+        - [ ] Behavior is covered by focused tests or documented verification.
+        - [ ] Public interfaces are typed and documented where useful.
+        - [ ] The change keeps public/private boundaries intact.
+        - [ ] High-risk permissions, secrets, external writes, or workflow-authority changes include explicit safety evidence.
+    validations:
+      required: true
+  - type: textarea
+    id: out-of-scope
+    attributes:
+      label: Out of scope
+      description: Boundaries that prevent the task from growing.
+      placeholder: Do not add voice approvals or a dashboard in this issue.
+    validations:
+      required: true
+  - type: textarea
+    id: required-checks
+    attributes:
+      label: Required checks
+      description: Name validation commands or explain why only focused/docs checks are required.
+      value: |
+        - [ ] Relevant unit tests
+        - [ ] Relevant lint/type/docs checks
+    validations:
+      required: true
