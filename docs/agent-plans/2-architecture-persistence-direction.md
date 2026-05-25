@@ -2,7 +2,7 @@
 
 Date: 2026-05-25
 Issue: https://github.com/oryacobi/Hoisa/issues/2
-Status: Spike recommendation updated with operator direction
+Status: Spike recommendation updated with plan-review scope notes
 
 ## Summary
 
@@ -834,6 +834,14 @@ Primary risks:
 
 ## Proposed Implementation Task Graph
 
+The graph below is intentionally larger than the first implementation slice.
+Follow-up issues should be created as small, independently approvable tasks.
+The first implementation issue should cover only the package skeleton, service
+shell, fake adapters, and architecture contract tests needed to prove the
+boundaries. MongoDB durability, external tool-control writes, and runner
+authority must each receive separate follow-up issues, plans, checks, and human
+approval gates before implementation.
+
 1. Create the initial Python package skeleton, local service shell, and
    architecture contract tests.
    Acceptance: domain/app/ports/adapters/service boundaries exist; tests fail
@@ -900,6 +908,10 @@ Primary risks:
 
 ## Remaining Implementation Questions
 
+These questions do not block approving the architecture recommendation or
+creating follow-up issues from the task graph. They should be answered in the
+specific follow-up issue or plan whose implementation depends on the answer.
+
 - Which Codex authentication mode should the local runner use first: ChatGPT
   login, API key, or both?
 - What is the first supported host OS matrix for the Hoisa-managed Docker
@@ -960,9 +972,10 @@ Primary risks:
 This recommendation now incorporates operator direction. The next action should
 be approval to create follow-up implementation issues for the task graph, then
 approval of the first implementation slice. Approval should grant only authority
-to build local/self-hosted Hoisa infrastructure and the first approved slice,
-not broad permission to read unrelated secrets, contact production systems, or
-publish target-repo data.
+to create architecture/task-graph follow-up issues and later implement the
+separately approved first slice. It should not grant broad permission to read
+unrelated secrets, contact production systems, enable external write actions,
+grant runner authority, or publish target-repo data.
 
 ## Revision History
 
@@ -972,3 +985,7 @@ publish target-repo data.
   Docker first runner, OpenHands as follow-up candidate.
 - 2026-05-25: Added DB source-of-truth model, external source synchronization,
   tool policy/action request controls, and review/learning query requirements.
+- 2026-05-25: Addressed plan-review notes by clarifying follow-up issue sizing,
+  separate approval gates for MongoDB durability, external tool writes, and
+  runner authority, and per-issue handling for remaining implementation
+  questions.
