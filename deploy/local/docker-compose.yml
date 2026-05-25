@@ -1,0 +1,25 @@
+services:
+  mongodb:
+    image: ${HOISA_MONGO_IMAGE:-mongo:8.0}
+    ports:
+      - "${HOISA_MONGO_BIND_HOST:-127.0.0.1}:${HOISA_MONGO_PORT:-27017}:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${HOISA_MONGO_ROOT_USERNAME:?Set HOISA_MONGO_ROOT_USERNAME in deploy/local/.env}
+      MONGO_INITDB_ROOT_PASSWORD: ${HOISA_MONGO_ROOT_PASSWORD:?Set HOISA_MONGO_ROOT_PASSWORD in deploy/local/.env}
+      MONGO_INITDB_DATABASE: ${HOISA_MONGO_DATABASE:-hoisa}
+    volumes:
+      - ./data/mongodb:/data/db
+      - ./mongo-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >
+          mongosh --quiet
+          --username "$${MONGO_INITDB_ROOT_USERNAME}"
+          --password "$${MONGO_INITDB_ROOT_PASSWORD}"
+          --authenticationDatabase admin
+          --eval "db.adminCommand({ ping: 1 }).ok"
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s

@@ -3,7 +3,8 @@
 from collections.abc import Sequence
 from typing import Protocol
 
-from hoisa.domain.work_items import WorkflowStage, WorkItemRef
+from hoisa.domain.work_item_refs import WorkItemRef
+from hoisa.domain.workflow_vocabulary import WorkflowStage
 
 
 class WorkQueue(Protocol):

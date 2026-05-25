@@ -1,7 +1,5 @@
 """Work item domain records shared by application workflows and ports."""
 
-from dataclasses import dataclass
-
 from pydantic import Field
 
 from hoisa.domain.evidence import EvidenceRef
@@ -9,6 +7,7 @@ from hoisa.domain.models import CollectionRoot, HoisaModel
 from hoisa.domain.privacy import PublicSafetyClass, RedactionStatus
 from hoisa.domain.provenance import SourceProvenance
 from hoisa.domain.target_repos import TargetRepoRef
+from hoisa.domain.work_item_refs import WorkItemRef
 from hoisa.domain.workflow_state import (
     QueueStatus,
     ReviewRoute,
@@ -23,13 +22,6 @@ __all__ = [
     "WorkItemRef",
     "WorkflowStage",
 ]
-
-
-@dataclass(frozen=True, slots=True)
-class WorkItemRef:
-    """Tracker-independent reference to a Hoisa work item."""
-
-    value: str
 
 
 class TrackerIssueRef(HoisaModel):
