@@ -6,6 +6,9 @@ These instructions apply to automated and human contributors working in Hoisa.
 
 - Hoisa is a public, self-hosting project for human-agent software project
   orchestration.
+- `docs/vision.md` is the canonical product vision. Keep workflow, design, and
+  implementation choices aligned with it unless the user explicitly changes the
+  vision.
 - Hoisa's first consumer is Hoisa itself: develop workflow, planning, review,
   and runner capabilities by using the workflow in this repository.
 - Keep public/private boundaries strict. Public Hoisa artifacts may contain

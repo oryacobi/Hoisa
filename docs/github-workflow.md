@@ -4,6 +4,9 @@ GitHub Issues and pull requests are Hoisa's first coordination surface. Hoisa
 will use itself as its first consumer, so this workflow is intentionally generic
 and public-safe.
 
+For the broader operating model, see the canonical vision in
+[`docs/vision.md`](vision.md).
+
 ## Source Of Truth
 
 - Issue bodies describe task substance: goal, context, acceptance criteria, out
@@ -60,6 +63,46 @@ explicit.
 - `plan`: select planning work only.
 - `implement`: select approved implementation work only.
 - `review`: select plan-review or implementation-review work only.
+
+## Continuous Loop
+
+The Hoisa loop should run until explicitly stopped. A human gate pauses the
+gated item, not the whole loop.
+
+Loop behavior:
+
+1. Sync tracker state.
+2. Apply resolved gate decisions.
+3. Reset or report expired worker leases.
+4. Select the next runnable agent-owned item.
+5. Run the relevant planner, reviewer, implementer, or repair agent.
+6. Collect evidence and transition workflow state.
+7. If only human-gated work remains, notify and wait quietly.
+
+The loop should keep working on other eligible items while some items wait for
+human approval.
+
+## Human Gates
+
+Human gates should be clean metadata-backed decision objects. The human should
+be able to understand why they are needed, read the recommendation quickly, and
+choose one action.
+
+Minimum gate fields:
+
+- gate type;
+- gate status;
+- linked issue or PR;
+- current workflow stage;
+- recommendation;
+- why the human is needed now;
+- exact authority granted by approval;
+- risk;
+- evidence links;
+- options: approve, request changes, request fresh review, or defer.
+
+Approval gates should not require reading full logs or agent transcripts.
+Brainstorming can be conversational; approval should be constrained and fast.
 
 ## Issue Quality
 
@@ -168,3 +211,18 @@ When agent output appears unsafe, off-scope, or misleading:
 3. Post a concise incident note on the issue or PR.
 4. Recover through normal review and PR flow.
 5. Create follow-up guardrail issues instead of expanding the immediate fix.
+
+## Workflow Retrospectives
+
+Hoisa should record structured workflow events so the process itself can be
+reviewed and improved over time.
+
+Useful events include task selection, plan creation, review requests, gate
+creation, gate decisions, agent runs, check failures, PR handoff, review
+changes, incidents, and task completion.
+
+Periodic retrospectives should answer what worked, what got stuck, which gates
+were useful or noisy, which review routes caught real problems, and which
+skills or workflow policies should change. Retrospective recommendations should
+become normal Hoisa issues and pass through the same planning, review, and
+approval gates.
