@@ -33,6 +33,13 @@ GitHub screens or using connector prompts.
 The helper defaults to owner `oryacobi`, repo `Hoisa`, Project `Hoisa`, and
 approval assignee `oryacobi`.
 
+Transition and next-work selection policy lives in pure Hoisa services:
+`hoisa.domain.workflow_transitions` owns the state-machine decisions, and
+`hoisa.app.workflows.select_next_work` owns typed agent-work selection. The
+helper maps GitHub Project and issue data into those services, then performs
+GitHub comments, Project field updates, branch setup, commits, pushes, and PR
+handoff side effects.
+
 Common commands:
 
 ```bash

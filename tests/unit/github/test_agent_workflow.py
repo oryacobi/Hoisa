@@ -221,6 +221,29 @@ class AgentWorkflowTests(unittest.TestCase):
             ],
         )
 
+    def test_select_next_issue_uses_policy_service_for_identity_precedence(self) -> None:
+        selection = workflow.select_next_issue(
+            (
+                self._issue_item(1, workflow.STATUS_TODO, workflow.STAGE_PLANNING),
+                self._issue_item(
+                    9,
+                    workflow.STATUS_IN_PROGRESS,
+                    workflow.STAGE_IMPLEMENTATION,
+                    labels=("type:task", "Codex-1"),
+                ),
+            ),
+            "Codex",
+            identity_label="Codex-1",
+        )
+
+        self.assertEqual(selection.action, "implement")
+        self.assertIsNotNone(selection.issue)
+        self.assertEqual(selection.issue.number, 9)
+        self.assertEqual(
+            selection.reason,
+            "Worker identity label has active work in an agent-owned stage.",
+        )
+
     def test_no_project_specific_private_terms_remain(self) -> None:
         helper = Path(workflow.__file__).read_text(encoding="utf-8").lower()
         forbidden = (
@@ -237,6 +260,31 @@ class AgentWorkflowTests(unittest.TestCase):
         )
         for term in forbidden:
             self.assertNotIn(term, helper)
+
+    def _issue_item(
+        self,
+        number: int,
+        status: str,
+        workflow_stage: str,
+        *,
+        labels: tuple[str, ...] = ("type:task",),
+    ) -> Any:
+        return workflow.IssueItem(
+            number=number,
+            title=f"Issue {number}",
+            url=f"https://example.invalid/issues/{number}",
+            body="## Goal\n\nDo work.\n\n## Acceptance criteria\n\n- Done.",
+            labels=labels,
+            status=status,
+            plan_state=workflow.PLAN_NOT_PLANNED,
+            agent="Codex",
+            phase="",
+            size="",
+            assignees=(),
+            linked_pull_requests=(),
+            workflow_stage=workflow_stage,
+            review_route=workflow.REVIEW_ROUTE_HUMAN_ONLY,
+        )
 
 
 if __name__ == "__main__":
