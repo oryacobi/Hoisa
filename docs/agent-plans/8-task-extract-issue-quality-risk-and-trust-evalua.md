@@ -52,6 +52,9 @@ linked_pr:
     `issue_quality_summary_to_json(report)` for CLI/workflow-event payloads.
   - Private helpers for canonical Markdown headings, required-section checks,
     risk detection, trust warnings, and blocking-finding checks.
+- If `src/hoisa/app/services/` is introduced as a new package directory, add
+  `src/hoisa/app/services/__init__.py` in the same implementation change to
+  keep the package skeleton explicit and importable.
 - Preserve or deliberately tighten the current behavior:
   - Task required headings: `Goal`, `Context and likely files`,
     `Acceptance criteria`, `Out of scope`, `Required checks`.
@@ -120,6 +123,8 @@ linked_pr:
     quoted/fenced/embedded consequential action requests in issue bodies and
     comments.
   - JSON and summary serialization contain only public-safe structured fields.
+- Keep all examples, comments, and fixtures generic and public-safe, especially
+  trust-warning, credential, token, and path examples.
 - Update `tests/unit/github/test_agent_workflow.py` with compatibility coverage
   that the helper adapter still exposes the expected report and summary shapes.
 - Required checks before implementation PR:
@@ -178,3 +183,5 @@ linked_pr:
 ## Revision History
 - 2026-05-25: Initial plan scaffold.
 - 2026-05-25: Filled implementation-ready plan for extracting the evaluator.
+- 2026-05-25: Addressed plan review notes about the services package
+  initializer and public-safe test examples.
