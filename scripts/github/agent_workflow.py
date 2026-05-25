@@ -19,6 +19,29 @@ import sys
 from typing import Any, Literal
 from urllib.parse import quote
 
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+SRC_ROOT = PROJECT_ROOT / "src"
+if str(SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(SRC_ROOT))
+
+from hoisa.app.workflows.select_next_work import (  # noqa: E402
+    SelectableWorkItem,
+    WorkSelectionAction,
+    WorkSelectionMode,
+    select_next_work_item,
+    stage_action as domain_stage_action,
+)
+from hoisa.domain.workflow_transitions import (  # noqa: E402
+    WorkflowTransitionError as DomainWorkflowTransitionError,
+    WorkflowTransitionSignal,
+    transition_workflow,
+)
+from hoisa.domain.workflow_vocabulary import (  # noqa: E402
+    QueueStatus as DomainQueueStatus,
+    ReviewRoute as DomainReviewRoute,
+    WorkflowStage as DomainWorkflowStage,
+)
+
 DEFAULT_OWNER = "oryacobi"
 DEFAULT_REPO_NAME = "Hoisa"
 DEFAULT_PROJECT_TITLE = "Hoisa"
@@ -111,9 +134,6 @@ AGENT_WORKFLOW_STAGES = {
 }
 CLAIMABLE_WORKFLOW_STAGES = AGENT_WORKFLOW_STAGES
 HUMAN_WORKFLOW_STAGES = {STAGE_PLAN_APPROVAL, STAGE_IMPLEMENTED}
-PLAN_REVIEW_ROUTES = {REVIEW_ROUTE_PLAN, REVIEW_ROUTE_BOTH}
-IMPLEMENTATION_REVIEW_ROUTES = {REVIEW_ROUTE_IMPLEMENTATION, REVIEW_ROUTE_BOTH}
-
 AGENT_MARKER_PREFIX = "<!-- hoisa-agent:"
 ACTIVE_PLAN_COMMENT_RE = re.compile(
     rf"^\s*{re.escape(AGENT_MARKER_PREFIX)}[^>]+\s(?:plan|revised plan)\s*-->",
@@ -438,33 +458,63 @@ def select_next_issue(
 ) -> NextSelection:
     """Select the next issue/action from Workflow Stage, Status, and filters."""
     _ = approval_assignee
-    owned = _sorted_items(
-        item
-        for item in items
-        if item.status == STATUS_IN_PROGRESS
-        and _has_identity_label(item.labels, identity_label)
-        and _stage_action(item.workflow_stage) in _actions_for_mode(mode)
+    selectable_items = tuple(_selectable_work_item(item) for item in items)
+    result = select_next_work_item(
+        selectable_items,
+        agent=agent,
+        mode=WorkSelectionMode(mode),
+        identity_label=identity_label,
     )
-    if owned:
+    if result.item is not None:
         return NextSelection(
-            action=_stage_action(owned[0].workflow_stage),
-            issue=owned[0],
-            reason="Worker identity label has active work in an agent-owned stage.",
-        )
-
-    queued = _eligible_stage_items(items, agent, mode)
-    if queued:
-        return NextSelection(
-            action=_stage_action(queued[0].workflow_stage),
-            issue=queued[0],
-            reason="Selected the next queued issue for an agent-actionable workflow stage.",
+            action=_next_action(result.action),
+            issue=_issue_item_by_number(items, result.item.number),
+            reason=result.reason,
         )
 
     return NextSelection(
-        action="none",
+        action=_next_action(result.action),
         issue=None,
-        reason="No eligible issue is ready for agent workflow action.",
+        reason=result.reason,
     )
+
+
+def _selectable_work_item(item: IssueItem) -> SelectableWorkItem:
+    try:
+        return SelectableWorkItem(
+            number=item.number,
+            title=item.title,
+            status=DomainQueueStatus(item.status),
+            workflow_stage=DomainWorkflowStage(item.workflow_stage),
+            review_route=item.review_route,
+            issue_type=issue_type(item.labels, item.body),
+            labels=item.labels,
+            agent=item.agent,
+            phase=item.phase,
+            linked_pull_requests=item.linked_pull_requests,
+            has_active_blockers=_has_active_blockers(item.blocked_by),
+        )
+    except ValueError as exc:
+        raise WorkflowError(f"Invalid workflow metadata for issue #{item.number}.") from exc
+
+
+def _issue_item_by_number(items: Sequence[IssueItem], number: int) -> IssueItem:
+    for item in items:
+        if item.number == number:
+            return item
+    raise WorkflowError(f"Selected issue #{number} is missing from workflow candidates.")
+
+
+def _next_action(action: WorkSelectionAction) -> NextAction:
+    if action == WorkSelectionAction.PLAN:
+        return "plan"
+    if action == WorkSelectionAction.REVIEW_PLAN:
+        return "review-plan"
+    if action == WorkSelectionAction.IMPLEMENT:
+        return "implement"
+    if action == WorkSelectionAction.REVIEW_IMPLEMENTATION:
+        return "review-implementation"
+    return "none"
 
 
 def transition_issue(
@@ -484,101 +534,21 @@ def transition_issue(
     return transition
 
 
-def _transition_owner(agent_owned: bool) -> Literal["agent", "human"]:
-    return "agent" if agent_owned else "human"
-
-
 def _workflow_transition(stage: str, event: str, review_route: str) -> WorkflowTransition:
-    if stage == STAGE_PLANNING and event == "plan-posted":
-        next_stage = (
-            STAGE_PLAN_REVIEW if review_route in PLAN_REVIEW_ROUTES else STAGE_PLAN_APPROVAL
+    try:
+        decision = transition_workflow(
+            DomainWorkflowStage(stage),
+            WorkflowTransitionSignal(event),
+            DomainReviewRoute(review_route),
         )
-        return WorkflowTransition(
-            workflow_stage=next_stage,
-            status=STATUS_TODO,
-            owner=_transition_owner(next_stage == STAGE_PLAN_REVIEW),
-            reason="Plan was posted.",
-        )
-    if stage == STAGE_PLAN_REVIEW:
-        if event == "review-ready":
-            return WorkflowTransition(
-                workflow_stage=STAGE_PLAN_APPROVAL,
-                status=STATUS_TODO,
-                owner="human",
-                reason="Plan review is ready for human approval.",
-            )
-        if event == "review-changes":
-            return WorkflowTransition(
-                workflow_stage=STAGE_PLANNING,
-                status=STATUS_TODO,
-                owner="agent",
-                reason="Plan review requested changes.",
-            )
-    if stage == STAGE_PLAN_APPROVAL:
-        if event == "human-approved":
-            return WorkflowTransition(
-                workflow_stage=STAGE_IMPLEMENTATION,
-                status=STATUS_TODO,
-                owner="agent",
-                reason="Plan has human approval.",
-            )
-        if event == "human-requested-changes":
-            return WorkflowTransition(
-                workflow_stage=STAGE_PLANNING,
-                status=STATUS_TODO,
-                owner="agent",
-                reason="Human approval requested plan changes.",
-            )
-        if event == "human-requested-review":
-            return WorkflowTransition(
-                workflow_stage=STAGE_PLAN_REVIEW,
-                status=STATUS_TODO,
-                owner="agent",
-                reason="Human approval requested agent plan review.",
-            )
-    if stage == STAGE_IMPLEMENTATION and event == "implementation-complete":
-        next_stage = (
-            STAGE_IMPLEMENTATION_REVIEW
-            if review_route in IMPLEMENTATION_REVIEW_ROUTES
-            else STAGE_IMPLEMENTED
-        )
-        return WorkflowTransition(
-            workflow_stage=next_stage,
-            status=STATUS_TODO,
-            owner=_transition_owner(next_stage == STAGE_IMPLEMENTATION_REVIEW),
-            reason="Implementation was handed off.",
-        )
-    if stage == STAGE_IMPLEMENTATION_REVIEW:
-        if event == "review-ready":
-            return WorkflowTransition(
-                workflow_stage=STAGE_IMPLEMENTED,
-                status=STATUS_TODO,
-                owner="human",
-                reason="Implementation review is ready for human verification.",
-            )
-        if event == "review-changes":
-            return WorkflowTransition(
-                workflow_stage=STAGE_IMPLEMENTATION,
-                status=STATUS_TODO,
-                owner="agent",
-                reason="Implementation review requested changes.",
-            )
-    if stage == STAGE_IMPLEMENTED:
-        if event == "human-requested-changes":
-            return WorkflowTransition(
-                workflow_stage=STAGE_IMPLEMENTATION,
-                status=STATUS_TODO,
-                owner="agent",
-                reason="Human verification requested implementation changes.",
-            )
-        if event == "human-requested-review":
-            return WorkflowTransition(
-                workflow_stage=STAGE_IMPLEMENTATION_REVIEW,
-                status=STATUS_TODO,
-                owner="agent",
-                reason="Human verification requested implementation review.",
-            )
-    raise WorkflowError(f"Invalid workflow transition: {stage!r} + {event!r}")
+    except (ValueError, DomainWorkflowTransitionError) as exc:
+        raise WorkflowError(f"Invalid workflow transition: {stage!r} + {event!r}") from exc
+    return WorkflowTransition(
+        workflow_stage=decision.workflow_stage.value,
+        status=decision.status.value,
+        owner=decision.owner.value,
+        reason=decision.reason,
+    )
 
 
 def _approval_event(state: str) -> str | None:
@@ -3364,15 +3334,10 @@ def _eligible_stage_items(items: Sequence[IssueItem], agent: str, mode: Mode) ->
 
 
 def _stage_action(stage: str) -> NextAction:
-    if stage == STAGE_PLANNING:
-        return "plan"
-    if stage == STAGE_PLAN_REVIEW:
-        return "review-plan"
-    if stage == STAGE_IMPLEMENTATION:
-        return "implement"
-    if stage == STAGE_IMPLEMENTATION_REVIEW:
-        return "review-implementation"
-    return "none"
+    try:
+        return _next_action(domain_stage_action(DomainWorkflowStage(stage)))
+    except ValueError:
+        return "none"
 
 
 def _actions_for_mode(mode: Mode) -> set[NextAction]:
