@@ -244,6 +244,49 @@ class AgentWorkflowTests(unittest.TestCase):
             "Worker identity label has active work in an agent-owned stage.",
         )
 
+    def test_issue_quality_helper_preserves_report_and_summary_shape(self) -> None:
+        issue = workflow.IssueItem(
+            number=8,
+            title="[Task]: Generic evaluator extraction",
+            url="https://github.com/example/hoisa/issues/8",
+            body=_quality_task_body("scripts/github/agent_workflow.py"),
+            labels=("type:task",),
+            status="Todo",
+            plan_state="Not Planned",
+            workflow_stage="Planning",
+            review_route="Review Both",
+            agent="Codex",
+            phase="",
+            size="",
+            assignees=(),
+            linked_pull_requests=(),
+            author_association="OWNER",
+        )
+
+        report = workflow.issue_quality_report(
+            issue,
+            (
+                {
+                    "id": 123,
+                    "body": "> gh api repos/example/project",
+                    "authorAssociation": "OWNER",
+                },
+            ),
+        )
+        payload = workflow.issue_quality_report_to_json(report)
+        summary = workflow.issue_quality_summary_to_json(report)
+
+        self.assertEqual(payload["type"], "task")
+        self.assertEqual(payload["risk_level"], "high")
+        self.assertIn("path:workflow-helper", payload["risk_reasons"])
+        self.assertEqual(
+            payload["trust_warnings"][0]["code"],
+            "quoted-or-embedded-action-request",
+        )
+        self.assertEqual(payload["trust_warnings"][0]["source"], "comment:123")
+        self.assertEqual(summary["risk_level"], "high")
+        self.assertEqual(summary["trust_warning_count"], 1)
+
     def test_no_project_specific_private_terms_remain(self) -> None:
         helper = Path(workflow.__file__).read_text(encoding="utf-8").lower()
         forbidden = (
@@ -285,6 +328,29 @@ class AgentWorkflowTests(unittest.TestCase):
             workflow_stage=workflow_stage,
             review_route=workflow.REVIEW_ROUTE_HUMAN_ONLY,
         )
+
+
+def _quality_task_body(extra: str) -> str:
+    return f"""## Goal
+
+Make a generic public-safe behavior available.
+
+## Context and likely files
+
+{extra}
+
+## Acceptance criteria
+
+- [ ] Behavior is covered.
+
+## Out of scope
+
+- No private repository content.
+
+## Required checks
+
+- Relevant unit tests.
+"""
 
 
 if __name__ == "__main__":
