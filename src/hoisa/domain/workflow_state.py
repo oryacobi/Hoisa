@@ -2,7 +2,9 @@
 
 from pydantic import Field
 
-from hoisa.domain.models import HoisaModel, UtcDatetime
+from hoisa.domain.models import CollectionRoot, HoisaModel, UtcDatetime
+from hoisa.domain.privacy import PublicSafetyClass, RedactionStatus
+from hoisa.domain.provenance import SourceProvenance
 from hoisa.domain.workflow_vocabulary import (
     QueueStatus,
     ReviewRoute,
@@ -20,6 +22,7 @@ __all__ = [
     "WorkItemType",
     "WorkflowStage",
     "WorkflowState",
+    "WorkflowStateRecord",
 ]
 
 
@@ -49,3 +52,13 @@ class WorkflowState(HoisaModel):
     risk: RiskLevel
     lease: Lease | None = None
     blockers: tuple[Blocker, ...] = ()
+
+
+class WorkflowStateRecord(CollectionRoot):
+    """Persisted workflow-state snapshot keyed by work item."""
+
+    work_item_id: str = Field(min_length=1)
+    state: WorkflowState
+    source_provenance: SourceProvenance
+    public_safety: PublicSafetyClass
+    redaction_status: RedactionStatus
