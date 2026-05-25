@@ -1,0 +1,517 @@
+{
+  "$defs": {
+    "AllowedAction": {
+      "additionalProperties": false,
+      "description": "Action authority granted to a runner inside a task packet.",
+      "properties": {
+        "action_type": {
+          "minLength": 1,
+          "title": "Action Type",
+          "type": "string"
+        },
+        "requires_gate": {
+          "default": false,
+          "title": "Requires Gate",
+          "type": "boolean"
+        },
+        "scope": {
+          "minLength": 1,
+          "title": "Scope",
+          "type": "string"
+        }
+      },
+      "required": [
+        "action_type",
+        "scope"
+      ],
+      "title": "AllowedAction",
+      "type": "object"
+    },
+    "ContentHash": {
+      "additionalProperties": false,
+      "description": "Stable content hash without embedding private content.",
+      "properties": {
+        "algorithm": {
+          "minLength": 1,
+          "title": "Algorithm",
+          "type": "string"
+        },
+        "value": {
+          "minLength": 1,
+          "title": "Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "algorithm",
+        "value"
+      ],
+      "title": "ContentHash",
+      "type": "object"
+    },
+    "EvidenceKind": {
+      "description": "Kinds of evidence Hoisa can cite without embedding raw artifacts.",
+      "enum": [
+        "issue",
+        "plan",
+        "pull_request",
+        "check_run",
+        "repo_file",
+        "command_summary",
+        "redacted_summary",
+        "schema_fixture"
+      ],
+      "title": "EvidenceKind",
+      "type": "string"
+    },
+    "EvidenceRef": {
+      "additionalProperties": false,
+      "description": "Reference to evidence with summary and redaction metadata.",
+      "properties": {
+        "content_hash": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ContentHash"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "evidence_id": {
+          "minLength": 1,
+          "title": "Evidence Id",
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/EvidenceKind"
+        },
+        "public_safety": {
+          "$ref": "#/$defs/PublicSafetyClass"
+        },
+        "redaction_status": {
+          "$ref": "#/$defs/RedactionStatus"
+        },
+        "source_provenance": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourceProvenance"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "summary": {
+          "minLength": 1,
+          "title": "Summary",
+          "type": "string"
+        },
+        "uri": {
+          "minLength": 1,
+          "title": "Uri",
+          "type": "string"
+        }
+      },
+      "required": [
+        "evidence_id",
+        "kind",
+        "uri",
+        "summary",
+        "public_safety",
+        "redaction_status"
+      ],
+      "title": "EvidenceRef",
+      "type": "object"
+    },
+    "EvidenceRequirement": {
+      "additionalProperties": false,
+      "description": "Evidence that a task packet or gate expects a run to produce.",
+      "properties": {
+        "description": {
+          "minLength": 1,
+          "title": "Description",
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/EvidenceKind"
+        },
+        "required": {
+          "default": true,
+          "title": "Required",
+          "type": "boolean"
+        },
+        "requirement_id": {
+          "minLength": 1,
+          "title": "Requirement Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "requirement_id",
+        "kind",
+        "description"
+      ],
+      "title": "EvidenceRequirement",
+      "type": "object"
+    },
+    "ProjectRef": {
+      "additionalProperties": false,
+      "description": "Stable reference to a Hoisa project.",
+      "properties": {
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "project_id": {
+          "minLength": 1,
+          "title": "Project Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "project_id",
+        "name"
+      ],
+      "title": "ProjectRef",
+      "type": "object"
+    },
+    "PublicSafetyClass": {
+      "description": "Classification for records crossing public or review boundaries.",
+      "enum": [
+        "public",
+        "public_safe_sample",
+        "redacted",
+        "private_reference"
+      ],
+      "title": "PublicSafetyClass",
+      "type": "string"
+    },
+    "RedactionStatus": {
+      "description": "Whether a record or reference has been redacted for public use.",
+      "enum": [
+        "not_required",
+        "redacted",
+        "summary_only"
+      ],
+      "title": "RedactionStatus",
+      "type": "string"
+    },
+    "RepositoryProvider": {
+      "description": "Repository host or source provider.",
+      "enum": [
+        "generic_git",
+        "github"
+      ],
+      "title": "RepositoryProvider",
+      "type": "string"
+    },
+    "RepositoryVisibility": {
+      "description": "Visibility classification for target repository references.",
+      "enum": [
+        "public",
+        "private",
+        "internal"
+      ],
+      "title": "RepositoryVisibility",
+      "type": "string"
+    },
+    "RunBudget": {
+      "additionalProperties": false,
+      "description": "Bounded execution budget for a run.",
+      "properties": {
+        "max_attempts": {
+          "exclusiveMinimum": 0,
+          "title": "Max Attempts",
+          "type": "integer"
+        },
+        "max_minutes": {
+          "exclusiveMinimum": 0,
+          "title": "Max Minutes",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "max_minutes",
+        "max_attempts"
+      ],
+      "title": "RunBudget",
+      "type": "object"
+    },
+    "RunnerProfile": {
+      "additionalProperties": false,
+      "description": "Runner configuration visible to a task packet or run record.",
+      "properties": {
+        "network_access": {
+          "default": false,
+          "title": "Network Access",
+          "type": "boolean"
+        },
+        "profile_name": {
+          "minLength": 1,
+          "title": "Profile Name",
+          "type": "string"
+        },
+        "runner_type": {
+          "minLength": 1,
+          "title": "Runner Type",
+          "type": "string"
+        },
+        "sandbox": {
+          "minLength": 1,
+          "title": "Sandbox",
+          "type": "string"
+        }
+      },
+      "required": [
+        "runner_type",
+        "profile_name",
+        "sandbox"
+      ],
+      "title": "RunnerProfile",
+      "type": "object"
+    },
+    "SourceProvenance": {
+      "additionalProperties": false,
+      "description": "Attribution for source observations and derived records.",
+      "properties": {
+        "content_hash": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ContentHash"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "external_updated_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "External Updated At"
+        },
+        "observed_at": {
+          "format": "date-time",
+          "title": "Observed At",
+          "type": "string"
+        },
+        "public_safety": {
+          "$ref": "#/$defs/PublicSafetyClass",
+          "default": "public"
+        },
+        "source_id": {
+          "minLength": 1,
+          "title": "Source Id",
+          "type": "string"
+        },
+        "source_system": {
+          "$ref": "#/$defs/SourceSystem"
+        },
+        "source_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Url"
+        }
+      },
+      "required": [
+        "source_system",
+        "source_id",
+        "observed_at"
+      ],
+      "title": "SourceProvenance",
+      "type": "object"
+    },
+    "SourceSystem": {
+      "description": "External or internal systems that can originate Hoisa records.",
+      "enum": [
+        "hoisa",
+        "github",
+        "human",
+        "runner",
+        "filesystem",
+        "conversation",
+        "slack"
+      ],
+      "title": "SourceSystem",
+      "type": "string"
+    },
+    "TargetRepoRef": {
+      "additionalProperties": false,
+      "description": "Generic repository reference without local paths or access details.",
+      "properties": {
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "owner": {
+          "minLength": 1,
+          "title": "Owner",
+          "type": "string"
+        },
+        "project": {
+          "$ref": "#/$defs/ProjectRef"
+        },
+        "provider": {
+          "$ref": "#/$defs/RepositoryProvider"
+        },
+        "target_repo_id": {
+          "minLength": 1,
+          "title": "Target Repo Id",
+          "type": "string"
+        },
+        "visibility": {
+          "$ref": "#/$defs/RepositoryVisibility"
+        }
+      },
+      "required": [
+        "target_repo_id",
+        "provider",
+        "owner",
+        "name",
+        "visibility",
+        "project"
+      ],
+      "title": "TargetRepoRef",
+      "type": "object"
+    },
+    "WorkflowStage": {
+      "description": "Workflow stages tracked by Hoisa.",
+      "enum": [
+        "Planning",
+        "Plan Review",
+        "Plan Approval",
+        "Implementation",
+        "Implementation Review",
+        "Implemented"
+      ],
+      "title": "WorkflowStage",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Bounded context and authority for one agent run.",
+  "properties": {
+    "allowed_actions": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/AllowedAction"
+      },
+      "title": "Allowed Actions",
+      "type": "array"
+    },
+    "authority_granted": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Authority Granted",
+      "type": "array"
+    },
+    "budget": {
+      "$ref": "#/$defs/RunBudget"
+    },
+    "context_refs": {
+      "items": {
+        "$ref": "#/$defs/EvidenceRef"
+      },
+      "minItems": 1,
+      "title": "Context Refs",
+      "type": "array"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "evidence_requirements": {
+      "items": {
+        "$ref": "#/$defs/EvidenceRequirement"
+      },
+      "minItems": 1,
+      "title": "Evidence Requirements",
+      "type": "array"
+    },
+    "objective": {
+      "minLength": 1,
+      "title": "Objective",
+      "type": "string"
+    },
+    "packet_id": {
+      "minLength": 1,
+      "title": "Packet Id",
+      "type": "string"
+    },
+    "public_safety": {
+      "$ref": "#/$defs/PublicSafetyClass"
+    },
+    "redaction_status": {
+      "$ref": "#/$defs/RedactionStatus"
+    },
+    "runner_profile": {
+      "$ref": "#/$defs/RunnerProfile"
+    },
+    "schema_version": {
+      "default": 1,
+      "minimum": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "source_provenance": {
+      "$ref": "#/$defs/SourceProvenance"
+    },
+    "target_repo": {
+      "$ref": "#/$defs/TargetRepoRef"
+    },
+    "updated_at": {
+      "format": "date-time",
+      "title": "Updated At",
+      "type": "string"
+    },
+    "work_item_id": {
+      "minLength": 1,
+      "title": "Work Item Id",
+      "type": "string"
+    },
+    "workflow_stage": {
+      "$ref": "#/$defs/WorkflowStage"
+    }
+  },
+  "required": [
+    "created_at",
+    "updated_at",
+    "packet_id",
+    "work_item_id",
+    "workflow_stage",
+    "target_repo",
+    "objective",
+    "context_refs",
+    "runner_profile",
+    "budget",
+    "evidence_requirements",
+    "source_provenance",
+    "public_safety",
+    "redaction_status"
+  ],
+  "title": "TaskPacket",
+  "type": "object"
+}

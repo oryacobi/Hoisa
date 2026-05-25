@@ -15,7 +15,9 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Typing :: Typed",
 ]
-dependencies = []
+dependencies = [
+    "pydantic>=2,<3",
+]
 
 [dependency-groups]
 dev = [
@@ -85,6 +87,7 @@ addopts = [
     "--import-mode=importlib",
 ]
 testpaths = ["tests"]
+pythonpath = ["src"]
 filterwarnings = [
     "error",
 ]

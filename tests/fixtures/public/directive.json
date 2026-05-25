@@ -1,0 +1,52 @@
+{
+  "directive_id": "directive_sample_models",
+  "created_at": "2026-05-25T12:00:00Z",
+  "updated_at": "2026-05-25T12:05:00Z",
+  "schema_version": 1,
+  "project": {
+    "project_id": "project_sample",
+    "name": "Hoisa Sample"
+  },
+  "target_repo": {
+    "target_repo_id": "repo_sample",
+    "provider": "github",
+    "owner": "example-org",
+    "name": "example-repo",
+    "visibility": "public",
+    "project": {
+      "project_id": "project_sample",
+      "name": "Hoisa Sample"
+    }
+  },
+  "summary": "Define public-safe workflow models.",
+  "body": "Create typed orchestration records and public fixture contracts.",
+  "constraints": {
+    "in_scope": [
+      "domain models",
+      "public schema fixtures"
+    ],
+    "out_of_scope": [
+      "persistence adapter",
+      "runner execution"
+    ],
+    "required_checks": [
+      "uv run pytest"
+    ]
+  },
+  "requested_review_route": "Review Both",
+  "risk": "high",
+  "source_provenance": {
+    "source_system": "github",
+    "source_id": "issue-6",
+    "observed_at": "2026-05-25T12:00:00Z",
+    "source_url": "https://github.com/example-org/example-repo/issues/6",
+    "external_updated_at": "2026-05-25T11:55:00Z",
+    "content_hash": {
+      "algorithm": "sha256",
+      "value": "a3f4c2d8e9b60123456789abcdef0123456789abcdef0123456789abcdef0123"
+    },
+    "public_safety": "public_safe_sample"
+  },
+  "public_safety": "public_safe_sample",
+  "redaction_status": "not_required"
+}

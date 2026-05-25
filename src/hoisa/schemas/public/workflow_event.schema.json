@@ -1,0 +1,437 @@
+{
+  "$defs": {
+    "ActorRef": {
+      "additionalProperties": false,
+      "description": "Stable actor reference without leaking channel-specific identity data.",
+      "properties": {
+        "actor_id": {
+          "minLength": 1,
+          "title": "Actor Id",
+          "type": "string"
+        },
+        "actor_type": {
+          "$ref": "#/$defs/ActorType"
+        },
+        "display_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Display Name"
+        }
+      },
+      "required": [
+        "actor_type",
+        "actor_id"
+      ],
+      "title": "ActorRef",
+      "type": "object"
+    },
+    "ActorType": {
+      "description": "Kinds of actors Hoisa records in workflow history.",
+      "enum": [
+        "human",
+        "agent",
+        "service",
+        "system"
+      ],
+      "title": "ActorType",
+      "type": "string"
+    },
+    "ContentHash": {
+      "additionalProperties": false,
+      "description": "Stable content hash without embedding private content.",
+      "properties": {
+        "algorithm": {
+          "minLength": 1,
+          "title": "Algorithm",
+          "type": "string"
+        },
+        "value": {
+          "minLength": 1,
+          "title": "Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "algorithm",
+        "value"
+      ],
+      "title": "ContentHash",
+      "type": "object"
+    },
+    "EventSubject": {
+      "additionalProperties": false,
+      "description": "Workflow event subject reference.",
+      "properties": {
+        "subject_id": {
+          "minLength": 1,
+          "title": "Subject Id",
+          "type": "string"
+        },
+        "subject_type": {
+          "minLength": 1,
+          "title": "Subject Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "subject_type",
+        "subject_id"
+      ],
+      "title": "EventSubject",
+      "type": "object"
+    },
+    "EvidenceKind": {
+      "description": "Kinds of evidence Hoisa can cite without embedding raw artifacts.",
+      "enum": [
+        "issue",
+        "plan",
+        "pull_request",
+        "check_run",
+        "repo_file",
+        "command_summary",
+        "redacted_summary",
+        "schema_fixture"
+      ],
+      "title": "EvidenceKind",
+      "type": "string"
+    },
+    "EvidenceRef": {
+      "additionalProperties": false,
+      "description": "Reference to evidence with summary and redaction metadata.",
+      "properties": {
+        "content_hash": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ContentHash"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "evidence_id": {
+          "minLength": 1,
+          "title": "Evidence Id",
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/EvidenceKind"
+        },
+        "public_safety": {
+          "$ref": "#/$defs/PublicSafetyClass"
+        },
+        "redaction_status": {
+          "$ref": "#/$defs/RedactionStatus"
+        },
+        "source_provenance": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourceProvenance"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "summary": {
+          "minLength": 1,
+          "title": "Summary",
+          "type": "string"
+        },
+        "uri": {
+          "minLength": 1,
+          "title": "Uri",
+          "type": "string"
+        }
+      },
+      "required": [
+        "evidence_id",
+        "kind",
+        "uri",
+        "summary",
+        "public_safety",
+        "redaction_status"
+      ],
+      "title": "EvidenceRef",
+      "type": "object"
+    },
+    "PublicSafetyClass": {
+      "description": "Classification for records crossing public or review boundaries.",
+      "enum": [
+        "public",
+        "public_safe_sample",
+        "redacted",
+        "private_reference"
+      ],
+      "title": "PublicSafetyClass",
+      "type": "string"
+    },
+    "RedactionStatus": {
+      "description": "Whether a record or reference has been redacted for public use.",
+      "enum": [
+        "not_required",
+        "redacted",
+        "summary_only"
+      ],
+      "title": "RedactionStatus",
+      "type": "string"
+    },
+    "RiskLevel": {
+      "description": "Workflow risk classification.",
+      "enum": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "title": "RiskLevel",
+      "type": "string"
+    },
+    "SourceProvenance": {
+      "additionalProperties": false,
+      "description": "Attribution for source observations and derived records.",
+      "properties": {
+        "content_hash": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ContentHash"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "external_updated_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "External Updated At"
+        },
+        "observed_at": {
+          "format": "date-time",
+          "title": "Observed At",
+          "type": "string"
+        },
+        "public_safety": {
+          "$ref": "#/$defs/PublicSafetyClass",
+          "default": "public"
+        },
+        "source_id": {
+          "minLength": 1,
+          "title": "Source Id",
+          "type": "string"
+        },
+        "source_system": {
+          "$ref": "#/$defs/SourceSystem"
+        },
+        "source_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Url"
+        }
+      },
+      "required": [
+        "source_system",
+        "source_id",
+        "observed_at"
+      ],
+      "title": "SourceProvenance",
+      "type": "object"
+    },
+    "SourceSystem": {
+      "description": "External or internal systems that can originate Hoisa records.",
+      "enum": [
+        "hoisa",
+        "github",
+        "human",
+        "runner",
+        "filesystem",
+        "conversation",
+        "slack"
+      ],
+      "title": "SourceSystem",
+      "type": "string"
+    },
+    "WorkflowEventType": {
+      "description": "Core event families recorded by the Hoisa workflow.",
+      "enum": [
+        "directive.captured",
+        "source.synced",
+        "source.conflict_detected",
+        "issue.quality_checked",
+        "work_item.selected",
+        "lease.claimed",
+        "task_packet.created",
+        "plan.created",
+        "plan.review_requested",
+        "gate.created",
+        "gate.decided",
+        "agent_run.started",
+        "agent_run.completed",
+        "checks.completed",
+        "pr.opened",
+        "review.ready",
+        "incident.recorded",
+        "retrospective.created"
+      ],
+      "title": "WorkflowEventType",
+      "type": "string"
+    },
+    "WorkflowStage": {
+      "description": "Workflow stages tracked by Hoisa.",
+      "enum": [
+        "Planning",
+        "Plan Review",
+        "Plan Approval",
+        "Implementation",
+        "Implementation Review",
+        "Implemented"
+      ],
+      "title": "WorkflowStage",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Structured event for audit, causation, and retrospective queries.",
+  "properties": {
+    "actor": {
+      "$ref": "#/$defs/ActorRef"
+    },
+    "causation_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Causation Id"
+    },
+    "correlation_id": {
+      "minLength": 1,
+      "title": "Correlation Id",
+      "type": "string"
+    },
+    "event_id": {
+      "minLength": 1,
+      "title": "Event Id",
+      "type": "string"
+    },
+    "event_type": {
+      "$ref": "#/$defs/WorkflowEventType"
+    },
+    "evidence_refs": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/EvidenceRef"
+      },
+      "title": "Evidence Refs",
+      "type": "array"
+    },
+    "happened_at": {
+      "format": "date-time",
+      "title": "Happened At",
+      "type": "string"
+    },
+    "payload": {
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "integer"
+          },
+          {
+            "type": "number"
+          },
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "title": "Payload",
+      "type": "object"
+    },
+    "payload_schema": {
+      "minLength": 1,
+      "title": "Payload Schema",
+      "type": "string"
+    },
+    "public_safety": {
+      "$ref": "#/$defs/PublicSafetyClass"
+    },
+    "redaction_status": {
+      "$ref": "#/$defs/RedactionStatus"
+    },
+    "risk": {
+      "$ref": "#/$defs/RiskLevel"
+    },
+    "schema_version": {
+      "default": 1,
+      "minimum": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "source_provenance": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SourceProvenance"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "subject": {
+      "$ref": "#/$defs/EventSubject"
+    },
+    "workflow_stage": {
+      "$ref": "#/$defs/WorkflowStage"
+    }
+  },
+  "required": [
+    "event_id",
+    "event_type",
+    "happened_at",
+    "actor",
+    "subject",
+    "correlation_id",
+    "workflow_stage",
+    "risk",
+    "public_safety",
+    "payload_schema",
+    "redaction_status"
+  ],
+  "title": "WorkflowEvent",
+  "type": "object"
+}
