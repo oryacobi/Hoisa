@@ -7,9 +7,8 @@ progress updates. Core selection and approval logic is intentionally isolated
 from subprocess calls so it can be tested without GitHub access.
 """
 
-from __future__ import annotations
-
 import argparse
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime
 import json
@@ -17,11 +16,8 @@ from pathlib import Path
 import re
 import subprocess
 import sys
-from typing import TYPE_CHECKING, Any, Literal
+from typing import Any, Literal
 from urllib.parse import quote
-
-if TYPE_CHECKING:
-    from collections.abc import Iterable, Mapping, Sequence
 
 DEFAULT_OWNER = "oryacobi"
 DEFAULT_REPO_NAME = "Hoisa"
@@ -472,7 +468,7 @@ def select_next_issue(
 
 
 def transition_issue(
-    gh: _Gh,
+    gh: "_Gh",
     issue: IssueItem,
     event: str,
 ) -> WorkflowTransition:
@@ -1190,7 +1186,7 @@ def _append_unique(values: list[str], value: str) -> None:
 
 
 def active_work_report(
-    gh: _Gh,
+    gh: "_Gh",
     filters: ActiveWorkFilters,
     *,
     now: datetime | None = None,
@@ -1267,7 +1263,7 @@ def _active_work_filter_matches(item: IssueItem, filters: ActiveWorkFilters) -> 
 
 
 def _active_work_item_to_json(
-    gh: _Gh,
+    gh: "_Gh",
     item: IssueItem,
     filters: ActiveWorkFilters,
     now: datetime,
@@ -1322,7 +1318,7 @@ def _active_work_item_to_json(
     }
 
 
-def _active_pr_report(gh: _Gh, target: str) -> dict[str, Any]:
+def _active_pr_report(gh: "_Gh", target: str) -> dict[str, Any]:
     pr = gh.pull_request(target)
     pr_json = _pr_to_json(pr)
     number = _int_value(pr_json.get("number"), "pull request number")

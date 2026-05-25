@@ -1,0 +1,1 @@
+"""Hoisa CLI command namespace."""
