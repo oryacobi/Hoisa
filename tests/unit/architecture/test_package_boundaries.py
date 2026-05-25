@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import ast
 from collections.abc import Iterable, Iterator, Sequence
 from dataclasses import dataclass
@@ -10,6 +8,11 @@ from typing import Any, cast
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 SRC_ROOT = PROJECT_ROOT / "src"
 PACKAGE_ROOT = SRC_ROOT / "hoisa"
+STATIC_RULE_ROOTS = (
+    PROJECT_ROOT / "scripts",
+    PROJECT_ROOT / "src",
+    PROJECT_ROOT / "tests",
+)
 
 GITHUB_CLIENT_IMPORTS = frozenset({"github", "github3", "ghapi"})
 PYMONGO_IMPORTS = frozenset({"pymongo", "motor"})
@@ -110,6 +113,16 @@ def test_tooling_includes_src_package() -> None:
     assert "src" in _string_list(pyproject, "tool", "mypy", "files")
 
 
+def test_python_annotations_do_not_hide_dependencies() -> None:
+    violations = [
+        violation
+        for path in _project_python_files()
+        for violation in _annotation_boundary_violations(path)
+    ]
+
+    assert not violations, "Forbidden annotation dependency patterns:\n" + "\n".join(violations)
+
+
 def _assert_no_forbidden_imports(root: Path, forbidden_prefixes: Iterable[str]) -> None:
     forbidden = frozenset(forbidden_prefixes)
     violations = [
@@ -124,6 +137,42 @@ def _assert_no_forbidden_imports(root: Path, forbidden_prefixes: Iterable[str]) 
 def _imports_under(root: Path) -> Iterator[ImportEdge]:
     for path in sorted(root.rglob("*.py")):
         yield from _imports_in_file(path)
+
+
+def _project_python_files() -> Iterator[Path]:
+    for root in STATIC_RULE_ROOTS:
+        for path in sorted(root.rglob("*.py")):
+            if "__pycache__" not in path.parts:
+                yield path
+
+
+def _annotation_boundary_violations(path: Path) -> Iterator[str]:
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    typing_aliases: set[str] = set()
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            if node.module == "__future__":
+                for alias in node.names:
+                    if alias.name == "annotations":
+                        yield f"{_display(path)}:{node.lineno} imports __future__.annotations"
+            elif node.module == "typing":
+                for alias in node.names:
+                    if alias.name == "TYPE_CHECKING":
+                        yield f"{_display(path)}:{node.lineno} imports typing.TYPE_CHECKING"
+        elif isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name == "typing":
+                    typing_aliases.add(alias.asname or alias.name)
+        elif isinstance(node, ast.Name) and node.id == "TYPE_CHECKING":
+            yield f"{_display(path)}:{node.lineno} references TYPE_CHECKING"
+        elif (
+            isinstance(node, ast.Attribute)
+            and node.attr == "TYPE_CHECKING"
+            and isinstance(node.value, ast.Name)
+            and node.value.id in typing_aliases
+        ):
+            yield f"{_display(path)}:{node.lineno} references {node.value.id}.TYPE_CHECKING"
 
 
 def _imports_in_file(path: Path) -> Iterator[ImportEdge]:

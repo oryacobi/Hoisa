@@ -1,7 +1,5 @@
 """Tracker-independent queue ports."""
 
-from __future__ import annotations
-
 from collections.abc import Sequence
 from typing import Protocol
 

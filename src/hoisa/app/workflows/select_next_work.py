@@ -1,7 +1,5 @@
 """Select runnable work through domain types and ports."""
 
-from __future__ import annotations
-
 from hoisa.domain.work_items import WorkflowStage, WorkItemRef
 from hoisa.ports.tracker import WorkQueue
 

@@ -16,6 +16,13 @@ These instructions apply to automated and human contributors working in Hoisa.
   Private target-repo content, logs, secrets, business logic, local paths, and
   domain-specific plans must stay in the target repositories.
 
+## Contributor Rules
+
+- Before editing code, read and follow `CONTRIBUTING.md`. It contains Hoisa's
+  coding standards, architecture rules, test expectations, and review norms.
+- Treat `CONTRIBUTING.md` as binding unless it conflicts with this file, repo
+  workflow skills, or a direct operator prompt.
+
 ## Workflow Skills
 
 - Issue routing, queue selection, approval sync, progress, completion, and
@@ -66,7 +73,7 @@ Run these before opening a PR:
 uv run python -m py_compile scripts/github/agent_workflow.py
 uv run ruff check .
 uv run ruff format --check .
-uv run mypy scripts tests
+uv run mypy scripts src tests
 uv run pytest
 ```
 
