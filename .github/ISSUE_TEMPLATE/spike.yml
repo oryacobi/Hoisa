@@ -1,0 +1,47 @@
+name: Spike
+description: A research or design task before implementation.
+title: "[Spike]: "
+labels: ["type:spike"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form when the next step is investigation, design, or tradeoff analysis rather than implementation.
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: What decision should this spike make possible?
+      placeholder: Which local runner contract gives Hoisa the smallest useful path to Codex-based self-hosting?
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Link related issues, files, docs, or constraints.
+      placeholder: |
+        - AGENTS.md
+        - docs/github-workflow.md
+        - docs/research/human-agent-project-orchestration.md
+    validations:
+      required: true
+  - type: textarea
+    id: deliverable
+    attributes:
+      label: Deliverable
+      description: What artifact should be posted back to the issue?
+      value: |
+        - [ ] Recommendation with rejected alternatives.
+        - [ ] Proposed implementation tasks if work should continue.
+        - [ ] Open questions or risks.
+    validations:
+      required: true
+  - type: textarea
+    id: out-of-scope
+    attributes:
+      label: Out of scope
+      value: |
+        - No implementation code changes unless explicitly approved in comments.
+    validations:
+      required: true
