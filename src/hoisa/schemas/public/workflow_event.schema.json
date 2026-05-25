@@ -294,6 +294,7 @@
         "checks.completed",
         "pr.opened",
         "review.ready",
+        "review.changes_requested",
         "incident.recorded",
         "retrospective.created"
       ],
