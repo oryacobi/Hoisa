@@ -33,8 +33,13 @@ data/private/
 
 # Local Docker/Mongo volumes used by developer setups
 deploy/local/.env
+deploy/local/.env.*
+!deploy/local/.env.example
 deploy/local/data/
 deploy/local/mongo-data/
+deploy/local/secrets/
+deploy/local/logs/
+deploy/local/*.log
 
 # Node/frontend caches if a UI is added later
 node_modules/
