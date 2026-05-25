@@ -7,13 +7,17 @@ description: Implement approved Hoisa issues and open pull requests. Use after g
 
 ## Purpose
 
-Use this after a task has passed the relevant approval gate. It owns scoped code
-changes, tests, rebases, PR creation, review-feedback fixes, and final handoff.
+Use this after `github-issue-workflow` finds an approved implementation issue.
+The workflow helper owns issue state, branch checkout, commit/push, PR creation,
+and final handoff. Keep implementation scoped to the approved plan.
 
 ## Workflow
 
-1. Verify implementation is allowed:
+1. Use `github-issue-workflow` and the helper to verify implementation is
+   allowed:
    - workflow stage is implementation;
+   - `Status=Todo` when newly claiming, or `Status=In Progress` with this
+     worker's exact identity label when continuing active work;
    - active blockers are resolved;
    - no later human signal requests changes;
    - issue quality and risk gates are satisfied.
@@ -21,14 +25,20 @@ changes, tests, rebases, PR creation, review-feedback fixes, and final handoff.
    current code before editing.
 3. Implement only approved scope. Record adjacent work as follow-up issues.
 4. Run focused checks while developing, then required checks before PR.
-5. Create a PR with summary, checks, risk notes, simplification evidence, and
-   linked issue.
-6. Post or return a concise handoff with PR link, checks, remaining risks, and
-   follow-ups.
+5. Commit and push through the helper:
+   `scripts/github/agent_workflow.py commit-push --issue <n> --message '<message>' --path <path> ...`
+   Use `--all` only after reviewing the full scoped diff.
+6. Create the PR through `scripts/github/agent_workflow.py pr-create` with
+   summary, checks, risk notes, simplification evidence, and `Fixes #<issue>`
+   when the issue should close on merge.
+7. Run `scripts/github/agent_workflow.py complete --issue <n> --agent <Agent> --pr <pr-url-or-number-or-branch>`
+   after the PR opens.
 
 ## Review Feedback
 
 - Read existing PR comments and unresolved review threads before changing code.
+- Use `scripts/github/agent_workflow.py pr-comments --kind all --json`; use
+  `--kind threads --unresolved-only --json` when thread state matters.
 - Keep each fix traceable to the feedback cluster it addresses.
 - If feedback conflicts with the approved plan, surface the conflict before
   changing behavior.
@@ -38,4 +48,7 @@ changes, tests, rebases, PR creation, review-feedback fixes, and final handoff.
 - Do not implement before approval gates pass.
 - Do not expand scope because related cleanup is visible.
 - Do not mark the issue done merely because a PR opened.
+- Do not use the GitHub connector for routine PR creation, updates, comments,
+  review summaries, files, diffs, or checks when the helper supports the
+  operation.
 - Do not discard user or other-agent changes.
