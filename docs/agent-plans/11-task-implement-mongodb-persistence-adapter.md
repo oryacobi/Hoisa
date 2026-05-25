@@ -32,7 +32,7 @@ linked_pr:
   knowingly create a short-lived dependency path.
 - Add PyMongo as a normal project dependency, with a `4.x` constraint and a
   minimum version that includes the GA async API. The expected shape is
-  `pymongo>=4.12,<5`, unless implementation-time dependency resolution shows a
+  `pymongo>=4.13,<5`, unless implementation-time dependency resolution shows a
   tighter current minimum is required.
 - Add `src/hoisa/adapters/persistence/mongodb.py` with:
   - `MongoPersistenceConfig` or an equivalent small immutable configuration
@@ -54,6 +54,13 @@ linked_pr:
     storage values;
   - explicit `_id` injection on write;
   - explicit `_id` removal and Pydantic validation on read.
+- Decode MongoDB datetimes as timezone-aware UTC values before Pydantic
+  validation. Hoisa's `UtcDatetime` validator rejects naive datetimes, and
+  PyMongo returns naive UTC datetimes by default unless configured otherwise.
+  The preferred strategy is adapter-owned `CodecOptions(tz_aware=True,
+  tzinfo=UTC)` applied at the database or collection boundary. If implementation
+  discovers a driver limitation for nested documents, add an explicit recursive
+  UTC-awareness conversion before domain model validation.
 - Treat current-state repository `save()` calls as snapshot upserts. Replacing
   the same stable ID is allowed; colliding declared unique composite identities
   must raise `DuplicateRecordError`.
@@ -117,6 +124,13 @@ linked_pr:
     `gate_id`;
   - run, evidence, tool-control, and event queries using the same ordering as
     the in-memory adapter.
+- Keep join-like repository semantics visible and covered:
+  - `WaitingGateQuery(tracker_issue_number=...)` depends on the related
+    `WorkItem.tracker_issue`;
+  - `ToolInvocationRepository.list_by_tool_action(project_id=...)` depends on
+    the linked `ActionRequest.project`;
+  - these may be implemented through bounded Python combination in the first
+    adapter, but contract tests must make the cross-record behavior explicit.
 - Implement runnable-work behavior to mirror the memory adapter exactly:
   - use `WorkflowStateRecord` state when present;
   - fall back to fields on `WorkItem` when no workflow-state record exists;
@@ -275,6 +289,12 @@ linked_pr:
   - duplicate-key driver failures are converted to `DuplicateRecordError`;
   - adapter serialization preserves timezone-aware datetimes as MongoDB date
     values and converts enum fields to storage values;
+  - adapter reads return timezone-aware UTC datetimes after a MongoDB
+    round-trip for root timestamps (`created_at`, `updated_at`), workflow
+    leases/blockers, gates, run timestamps, tool invocation timestamps, and
+    workflow event `happened_at`;
+  - join-like query semantics match the in-memory adapter for waiting gates by
+    tracker issue and tool invocations by linked action request project;
   - architecture tests still prevent PyMongo/Motor imports from domain,
     application, and port modules.
 - Local runtime validation:
@@ -314,6 +334,11 @@ linked_pr:
 - Index/schema drift risk: MongoDB uniqueness can silently differ from memory
   behavior if indexes are missing. Mitigate with explicit index specs,
   `ensure_indexes()`, and index-inspection tests.
+- Datetime decoding risk: PyMongo's default naive UTC reads would fail Hoisa
+  domain validation or tempt adapter code to weaken timestamp requirements.
+  Mitigate with adapter-owned timezone-aware codec options or recursive
+  read-side UTC conversion, plus MongoDB round-trip tests for representative
+  nested timestamps.
 - Transaction ambiguity risk: future handoff operations may need current-state
   updates and event appends to be atomic. Mitigate by documenting that this
   issue does not add a cross-repository transaction port, and by keeping any
@@ -358,7 +383,8 @@ linked_pr:
   correctness over server-side query sophistication, provided the indexes are
   explicit and future optimization can happen behind the same port.
 - PyMongo Async is the correct driver path as of this plan date,
-  2026-05-25.
+  2026-05-25, and PyMongo `4.13` is the first GA async lower bound supported
+  by the cited MongoDB release notes.
 
 ## Out Of Scope
 - Managed MongoDB Atlas or any cloud database setup.
@@ -383,6 +409,10 @@ linked_pr:
   https://www.mongodb.com/docs/languages/python/pymongo-driver/current/connect/mongoclient/
 - MongoDB Python driver and Motor deprecation notice:
   https://www.mongodb.com/docs/languages/python/
+- PyMongo 4.13 release notes for PyMongo Async GA:
+  https://www.mongodb.com/docs/languages/python/pymongo-driver/v4.13/reference/release-notes/
+- PyMongo timezone-aware datetime decoding:
+  https://www.mongodb.com/docs/languages/python/pymongo-driver/data-formats/dates-and-times/
 - PyMongo index creation and duplicate-key behavior:
   https://www.mongodb.com/docs/languages/python/pymongo-driver/current/indexes/
 - MongoDB unique indexes:
@@ -395,3 +425,6 @@ linked_pr:
 ## Revision History
 - 2026-05-25: Initial plan scaffold.
 - 2026-05-25: Filled implementation-ready plan for MongoDB persistence adapter.
+- 2026-05-25: Addressed plan review by updating the PyMongo Async lower bound
+  to the GA release and making timezone-aware MongoDB datetime decoding plus
+  round-trip tests explicit.
