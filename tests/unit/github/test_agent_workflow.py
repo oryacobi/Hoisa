@@ -1,14 +1,16 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 import importlib.util
 from pathlib import Path
 import subprocess
 import sys
+from typing import Any
 import unittest
 from unittest import mock
 
 
-def load_workflow():
+def load_workflow() -> Any:
     path = Path(__file__).parents[3] / "scripts" / "github" / "agent_workflow.py"
     spec = importlib.util.spec_from_file_location("agent_workflow", path)
     if spec is None or spec.loader is None:
@@ -60,10 +62,10 @@ class AgentWorkflowTests(unittest.TestCase):
         path = Path("docs/agent-plans/2-example.md")
         calls: list[list[str]] = []
 
-        def fake_run(args):
+        def fake_run(args: Sequence[str]) -> None:
             calls.append(list(args))
 
-        def fake_probe(args):
+        def fake_probe(args: Sequence[str]) -> subprocess.CompletedProcess[bytes]:
             calls.append(list(args))
             return subprocess.CompletedProcess(["git", *args], 1)
 
@@ -96,10 +98,10 @@ class AgentWorkflowTests(unittest.TestCase):
             },
         )()
 
-        def fake_run(command):
+        def fake_run(command: Sequence[str]) -> None:
             calls.append(list(command))
 
-        def fake_probe(command):
+        def fake_probe(command: Sequence[str]) -> subprocess.CompletedProcess[bytes]:
             calls.append(list(command))
             return subprocess.CompletedProcess(["git", *command], 1)
 

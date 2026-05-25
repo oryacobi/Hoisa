@@ -58,6 +58,21 @@ These instructions apply to automated and human contributors working in Hoisa.
   `pr-create`, and helper `complete`. Do not move issues to `Done` just because
   a PR opened.
 
+## Checks
+
+Run these before opening a PR:
+
+```bash
+uv run python -m py_compile scripts/github/agent_workflow.py
+uv run ruff check .
+uv run ruff format --check .
+uv run mypy scripts tests
+uv run pytest
+```
+
+For documentation-only changes, run the checks that are relevant and explain
+any skipped checks in the PR.
+
 ## Design Principles
 
 - Prefer the smallest complete change that can be reviewed and verified.

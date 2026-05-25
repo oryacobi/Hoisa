@@ -487,16 +487,19 @@ def transition_issue(
     return transition
 
 
+def _transition_owner(agent_owned: bool) -> Literal["agent", "human"]:
+    return "agent" if agent_owned else "human"
+
+
 def _workflow_transition(stage: str, event: str, review_route: str) -> WorkflowTransition:
     if stage == STAGE_PLANNING and event == "plan-posted":
         next_stage = (
             STAGE_PLAN_REVIEW if review_route in PLAN_REVIEW_ROUTES else STAGE_PLAN_APPROVAL
         )
-        owner = "agent" if next_stage == STAGE_PLAN_REVIEW else "human"
         return WorkflowTransition(
             workflow_stage=next_stage,
             status=STATUS_TODO,
-            owner=owner,
+            owner=_transition_owner(next_stage == STAGE_PLAN_REVIEW),
             reason="Plan was posted.",
         )
     if stage == STAGE_PLAN_REVIEW:
@@ -542,11 +545,10 @@ def _workflow_transition(stage: str, event: str, review_route: str) -> WorkflowT
             if review_route in IMPLEMENTATION_REVIEW_ROUTES
             else STAGE_IMPLEMENTED
         )
-        owner = "agent" if next_stage == STAGE_IMPLEMENTATION_REVIEW else "human"
         return WorkflowTransition(
             workflow_stage=next_stage,
             status=STATUS_TODO,
-            owner=owner,
+            owner=_transition_owner(next_stage == STAGE_IMPLEMENTATION_REVIEW),
             reason="Implementation was handed off.",
         )
     if stage == STAGE_IMPLEMENTATION_REVIEW:
@@ -1226,12 +1228,19 @@ def active_work_human_summary(report: dict[str, Any]) -> str:
     for row in rows:
         if not isinstance(row, dict):
             continue
-        review = row.get("review") if isinstance(row.get("review"), dict) else {}
-        checks = row.get("checks") if isinstance(row.get("checks"), dict) else {}
-        blockers = row.get("blockers") if isinstance(row.get("blockers"), list) else []
-        linked_prs = row.get("linked_prs") if isinstance(row.get("linked_prs"), list) else []
+        raw_review = row.get("review")
+        raw_checks = row.get("checks")
+        raw_blockers = row.get("blockers")
+        raw_linked_prs = row.get("linked_prs")
+        review = raw_review if isinstance(raw_review, dict) else {}
+        checks = raw_checks if isinstance(raw_checks, dict) else {}
+        blockers = raw_blockers if isinstance(raw_blockers, list) else []
+        linked_prs = raw_linked_prs if isinstance(raw_linked_prs, list) else []
         plan_age = row.get("plan_age_days")
         plan_age_text = "unknown" if plan_age is None else f"{plan_age}d"
+        active_blockers = sum(
+            1 for blocker in blockers if isinstance(blocker, dict) and blocker.get("is_active")
+        )
         lines.append(
             " ".join(
                 (
@@ -1243,7 +1252,7 @@ def active_work_human_summary(report: dict[str, Any]) -> str:
                     str(len(linked_prs)),
                     _compact_cell(_string(review.get("state"))),
                     _compact_cell(_string(checks.get("state"))),
-                    str(sum(1 for blocker in blockers if blocker.get("is_active"))),
+                    str(active_blockers),
                 )
             )
         )
@@ -1444,11 +1453,11 @@ def _combined_review_summary(pr_reports: Sequence[dict[str, Any]]) -> dict[str, 
     latest_reviews: list[dict[str, Any]] = []
     unresolved_threads = 0
     for report in pr_reports:
-        review = report.get("review") if isinstance(report.get("review"), dict) else {}
+        raw_review = report.get("review")
+        review = raw_review if isinstance(raw_review, dict) else {}
         unresolved_threads += int(review.get("unresolved_threads") or 0)
-        values = (
-            review.get("latest_reviews") if isinstance(review.get("latest_reviews"), list) else []
-        )
+        raw_latest_reviews = review.get("latest_reviews")
+        values = raw_latest_reviews if isinstance(raw_latest_reviews, list) else []
         latest_reviews.extend(value for value in values if isinstance(value, dict))
     return {
         "state": state,
@@ -1495,7 +1504,8 @@ def _combined_check_summary(pr_reports: Sequence[dict[str, Any]]) -> dict[str, A
     failures: list[str] = []
     pending: list[str] = []
     for report in pr_reports:
-        checks = report.get("checks") if isinstance(report.get("checks"), dict) else {}
+        raw_checks = report.get("checks")
+        checks = raw_checks if isinstance(raw_checks, dict) else {}
         raw_buckets = checks.get("buckets", {})
         if isinstance(raw_buckets, dict):
             for bucket, count in raw_buckets.items():
@@ -3093,8 +3103,9 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def _body_from_args(args: argparse.Namespace) -> str:
-    if getattr(args, "body", None) is not None:
-        return args.body.strip()
+    body = getattr(args, "body", None)
+    if isinstance(body, str):
+        return body.strip()
     body_file = getattr(args, "body_file", None)
     if body_file is None:
         raise WorkflowError("Expected --body or --body-file.")

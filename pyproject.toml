@@ -1,0 +1,90 @@
+[project]
+name = "hoisa"
+version = "0.0.1"
+description = "Self-hosting project orchestration for human-agent software work."
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "AGPL-3.0-only" }
+authors = [{ name = "Or Yacobi", email = "oryacobi@gmail.com" }]
+keywords = ["agents", "orchestration", "workflow", "github"]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "License :: OSI Approved :: GNU Affero General Public License v3",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Typing :: Typed",
+]
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "mypy>=1.11",
+    "pytest>=8.3",
+    "ruff>=0.6",
+]
+
+[tool.uv]
+package = false
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["scripts", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "C4",   # comprehensions
+    "RUF",  # ruff-specific
+    "S",    # bandit
+    "SIM",  # simplify
+]
+ignore = [
+    "E501",  # long CLI/help text is often clearer as one literal
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S101"]
+
+[tool.ruff.lint.isort]
+combine-as-imports = true
+force-sort-within-sections = true
+
+[tool.ruff.format]
+docstring-code-format = true
+docstring-code-line-length = 88
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unreachable = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+extra_checks = true
+pretty = true
+show_error_codes = true
+files = ["scripts", "tests"]
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+disable_error_code = ["no-untyped-def"]
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--strict-config",
+    "--import-mode=importlib",
+]
+testpaths = ["tests"]
+filterwarnings = [
+    "error",
+]
