@@ -43,6 +43,7 @@ node_modules/
 .yarn/
 
 # OS/editor noise
+.idea/
 .DS_Store
 Thumbs.db
 *.swp
