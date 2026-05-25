@@ -28,8 +28,9 @@ linked_pr:
     plan posted, review ready, review changes, human approved, human requested
     changes, human requested review, and implementation complete;
   - return an intention-revealing transition result with next stage, queue
-    status, next owner role, reason, and a structured event key suitable for
-    later `WorkflowEvent` persistence.
+    status, next owner role, reason, and a structured event key that reuses the
+    existing `WorkflowEventType` vocabulary where possible or is explicitly
+    mappable to it.
 - Put next-work selection policy in `src/hoisa/app/workflows/` because it
   combines domain workflow state with tracker-derived scheduling inputs such
   as phase, labels, linked PRs, issue quality shape, and worker identity.
@@ -97,6 +98,12 @@ linked_pr:
     still call helper internals directly;
   - avoid changing command output JSON except where new event keys can be added
     without breaking existing consumers.
+- Align structured event keys with `src/hoisa/domain/events.py`:
+  - prefer existing `WorkflowEventType` values for policy outcomes such as work
+    selection, gate decisions, review readiness, and PR handoff;
+  - when a policy-level key is more specific than the current event enum, name
+    the mapping explicitly in code or tests rather than introducing an
+    untraceable string.
 - Update `docs/github-workflow.md` only if the implementation creates a new
   public service interface or clarifies that the helper is now an adapter over
   domain/application policy.
@@ -107,12 +114,14 @@ linked_pr:
     route vocabulary;
   - a transition function accepts typed current stage, signal, and review route;
   - transition outputs expose next `WorkflowStage`, next `QueueStatus`, next
-    owner role, reason, and structured event key.
+    owner role, reason, and structured event key aligned with or mapped to
+    `WorkflowEventType`.
 - Application interface:
   - a selection function accepts a sequence of typed selectable items, agent
     family, mode, identity label, and optional filters;
   - selection outputs expose a workflow action, selected item or `None`,
-    reason, and structured event key.
+    reason, and structured event key aligned with or mapped to
+    `WorkflowEventType`.
 - Bootstrap helper interface:
   - CLI commands and JSON payloads should remain backward compatible for
     `next`, `claim`, `post-plan`, `revise-plan`, `approve`,
@@ -157,7 +166,8 @@ linked_pr:
   - intention-revealing service acceptance is covered by public function and
     result type names;
   - structured-event acceptance is covered by transition and selection result
-    assertions.
+    assertions, including checks that keys reuse or map clearly to
+    `WorkflowEventType`.
 
 ## Risks
 - Risk level: high. The issue touches `scripts/github/agent_workflow.py`, which
@@ -209,3 +219,5 @@ linked_pr:
 
 ## Revision History
 - 2026-05-25: Initial plan published for issue #7.
+- 2026-05-25: Addressed plan review note by clarifying that structured event
+  keys should reuse or explicitly map to `WorkflowEventType`.
