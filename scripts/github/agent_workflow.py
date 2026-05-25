@@ -378,16 +378,17 @@ def approval_from_comments(
     approval_assignee: str = DEFAULT_APPROVAL_ASSIGNEE,
 ) -> ApprovalResult:
     """Detect whether a plan is approved, rejected, or still waiting."""
-    relevant = [
-        comment
-        for comment in sorted(comments, key=lambda item: item.created_at)
-        if not comment.body.lstrip().startswith(AGENT_MARKER_PREFIX)
-        and comment.author.lower() == approval_assignee.lower()
-    ]
     _ = assignees
 
     latest_signal: tuple[str, str] | None = None
-    for comment in relevant:
+    for comment in sorted(comments, key=lambda item: item.created_at):
+        if ACTIVE_PLAN_COMMENT_RE.match(comment.body):
+            latest_signal = None
+            continue
+        if comment.body.lstrip().startswith(AGENT_MARKER_PREFIX):
+            continue
+        if comment.author.lower() != approval_assignee.lower():
+            continue
         normalized = _normalize_comment(comment.body)
         if _is_rejection(normalized):
             latest_signal = ("rejected", comment.created_at)
@@ -1679,15 +1680,30 @@ class _Gh:
     ) -> None:
         """Replace visible worker identity labels with the current worker label."""
         for old_label in old_labels:
-            if old_label != label and _looks_identity_label_name(old_label):
+            if old_label != label and self._is_identity_label(old_label):
                 self.remove_issue_label(issue, old_label)
         self.add_identity_label(issue, label)
 
     def clear_identity_labels(self, issue: int, labels: Sequence[str]) -> None:
         """Remove visible worker identity labels when an issue is released."""
         for label in labels:
-            if _looks_identity_label_name(label):
+            if self._is_identity_label(label):
                 self.remove_issue_label(issue, label)
+
+    def _is_identity_label(self, label: str) -> bool:
+        """Return whether a label is a helper-managed worker identity label."""
+        if _looks_identity_label_name(label):
+            return True
+        encoded = quote(label, safe="")
+        try:
+            payload = self._api_json_value(f"repos/{self.repo}/labels/{encoded}")
+        except subprocess.CalledProcessError as exc:
+            if _is_http_not_found(exc):
+                return False
+            raise
+        return isinstance(payload, dict) and _string(payload.get("description")) == (
+            IDENTITY_LABEL_DESCRIPTION
+        )
 
     def project_context(self) -> ProjectContext:
         """Resolve the configured Project and field metadata, cached per process."""
@@ -3421,8 +3437,12 @@ def _has_identity_label(labels: Sequence[str], identity_label: str) -> bool:
 
 
 def _looks_identity_label_name(label: str) -> bool:
+    normalized = re.sub(r"\s+", " ", label.strip())
     agents = "|".join(re.escape(agent) for agent in CANONICAL_AGENTS.values())
-    return bool(re.fullmatch(rf"(?:{agents})(?: Agent)?(?: [A-Za-z0-9_.-]+)?", label))
+    return bool(
+        re.fullmatch(rf"(?:{agents}) Agent [A-Za-z0-9_. -]+", normalized)
+        or re.fullmatch(rf"(?:{agents})-[A-Za-z0-9_.-]+", normalized)
+    )
 
 
 def _normalized_values(values: Sequence[str]) -> set[str]:

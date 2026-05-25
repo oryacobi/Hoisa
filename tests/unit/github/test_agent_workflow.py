@@ -58,6 +58,105 @@ class AgentWorkflowTests(unittest.TestCase):
             ["Codex", "Claude", "Cursor", "Human"],
         )
 
+    def test_approval_signals_are_scoped_to_latest_plan_comment(self) -> None:
+        comments = [
+            workflow.Comment(
+                body=f"{workflow._agent_marker('Codex', 'plan')}\n\nPlan v1",
+                author="codex",
+                created_at="2026-05-25T10:00:00Z",
+            ),
+            workflow.Comment(
+                body="approved",
+                author="oryacobi",
+                created_at="2026-05-25T10:01:00Z",
+            ),
+            workflow.Comment(
+                body=f"{workflow._agent_marker('Codex', 'revised plan')}\n\nPlan v2",
+                author="codex",
+                created_at="2026-05-25T10:02:00Z",
+            ),
+        ]
+
+        result = workflow.approval_from_comments(comments, ())
+
+        self.assertEqual(result.state, "needs_approval")
+        self.assertEqual(result.workflow_stage, workflow.STAGE_PLAN_APPROVAL)
+        self.assertIsNone(result.latest_human_signal_at)
+
+    def test_approval_uses_human_signal_after_latest_plan_comment(self) -> None:
+        comments = [
+            workflow.Comment(
+                body="request changes",
+                author="oryacobi",
+                created_at="2026-05-25T10:01:00Z",
+            ),
+            workflow.Comment(
+                body=f"{workflow._agent_marker('Codex', 'revised plan')}\n\nPlan v2",
+                author="codex",
+                created_at="2026-05-25T10:02:00Z",
+            ),
+            workflow.Comment(
+                body="request review",
+                author="oryacobi",
+                created_at="2026-05-25T10:03:00Z",
+            ),
+        ]
+
+        result = workflow.approval_from_comments(comments, ())
+
+        self.assertEqual(result.state, "review_requested")
+        self.assertEqual(result.workflow_stage, workflow.STAGE_PLAN_REVIEW)
+        self.assertEqual(result.latest_human_signal_at, "2026-05-25T10:03:00Z")
+
+    def test_identity_label_detection_handles_helper_labels(self) -> None:
+        gh = workflow._Gh(
+            owner="oryacobi",
+            repo_name="Hoisa",
+            project_title="Hoisa",
+            approval_assignee="oryacobi",
+        )
+
+        self.assertTrue(workflow._looks_identity_label_name("Codex-1"))
+        self.assertTrue(workflow._looks_identity_label_name("Codex Agent Jane Doe"))
+        self.assertFalse(workflow._looks_identity_label_name("type:task"))
+        with mock.patch.object(
+            gh,
+            "_api_json_value",
+            return_value={"description": workflow.IDENTITY_LABEL_DESCRIPTION},
+        ):
+            self.assertTrue(gh._is_identity_label("Jane Doe"))
+
+    def test_replace_identity_label_removes_only_helper_identity_labels(self) -> None:
+        gh = workflow._Gh(
+            owner="oryacobi",
+            repo_name="Hoisa",
+            project_title="Hoisa",
+            approval_assignee="oryacobi",
+        )
+
+        with (
+            mock.patch.object(
+                gh,
+                "_is_identity_label",
+                side_effect=lambda label: label in {"Jane Doe", "Codex-1"},
+            ),
+            mock.patch.object(gh, "remove_issue_label") as remove_issue_label,
+            mock.patch.object(gh, "add_identity_label") as add_identity_label,
+        ):
+            gh.replace_identity_label(
+                2,
+                ("type:task", "Jane Doe", "Codex-1", "Codex-2"),
+                "Codex-2",
+            )
+
+        remove_issue_label.assert_has_calls(
+            [
+                mock.call(2, "Jane Doe"),
+                mock.call(2, "Codex-1"),
+            ]
+        )
+        add_identity_label.assert_called_once_with(2, "Codex-2")
+
     def test_plan_posting_git_path_commits_and_pushes(self) -> None:
         path = Path("docs/agent-plans/2-example.md")
         calls: list[list[str]] = []
