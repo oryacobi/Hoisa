@@ -1,0 +1,343 @@
+{
+  "$defs": {
+    "ContentHash": {
+      "additionalProperties": false,
+      "description": "Stable content hash without embedding private content.",
+      "properties": {
+        "algorithm": {
+          "minLength": 1,
+          "title": "Algorithm",
+          "type": "string"
+        },
+        "value": {
+          "minLength": 1,
+          "title": "Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "algorithm",
+        "value"
+      ],
+      "title": "ContentHash",
+      "type": "object"
+    },
+    "DirectiveConstraints": {
+      "additionalProperties": false,
+      "description": "Boundaries attached to a human directive.",
+      "properties": {
+        "in_scope": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "In Scope",
+          "type": "array"
+        },
+        "out_of_scope": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Out Of Scope",
+          "type": "array"
+        },
+        "required_checks": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Required Checks",
+          "type": "array"
+        }
+      },
+      "title": "DirectiveConstraints",
+      "type": "object"
+    },
+    "ProjectRef": {
+      "additionalProperties": false,
+      "description": "Stable reference to a Hoisa project.",
+      "properties": {
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "project_id": {
+          "minLength": 1,
+          "title": "Project Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "project_id",
+        "name"
+      ],
+      "title": "ProjectRef",
+      "type": "object"
+    },
+    "PublicSafetyClass": {
+      "description": "Classification for records crossing public or review boundaries.",
+      "enum": [
+        "public",
+        "public_safe_sample",
+        "redacted",
+        "private_reference"
+      ],
+      "title": "PublicSafetyClass",
+      "type": "string"
+    },
+    "RedactionStatus": {
+      "description": "Whether a record or reference has been redacted for public use.",
+      "enum": [
+        "not_required",
+        "redacted",
+        "summary_only"
+      ],
+      "title": "RedactionStatus",
+      "type": "string"
+    },
+    "RepositoryProvider": {
+      "description": "Repository host or source provider.",
+      "enum": [
+        "generic_git",
+        "github"
+      ],
+      "title": "RepositoryProvider",
+      "type": "string"
+    },
+    "RepositoryVisibility": {
+      "description": "Visibility classification for target repository references.",
+      "enum": [
+        "public",
+        "private",
+        "internal"
+      ],
+      "title": "RepositoryVisibility",
+      "type": "string"
+    },
+    "ReviewRoute": {
+      "description": "Independent review route for plans and implementations.",
+      "enum": [
+        "Human Only",
+        "Review Plan",
+        "Review Implementation",
+        "Review Both"
+      ],
+      "title": "ReviewRoute",
+      "type": "string"
+    },
+    "RiskLevel": {
+      "description": "Workflow risk classification.",
+      "enum": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "title": "RiskLevel",
+      "type": "string"
+    },
+    "SourceProvenance": {
+      "additionalProperties": false,
+      "description": "Attribution for source observations and derived records.",
+      "properties": {
+        "content_hash": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ContentHash"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "external_updated_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "External Updated At"
+        },
+        "observed_at": {
+          "format": "date-time",
+          "title": "Observed At",
+          "type": "string"
+        },
+        "public_safety": {
+          "$ref": "#/$defs/PublicSafetyClass",
+          "default": "public"
+        },
+        "source_id": {
+          "minLength": 1,
+          "title": "Source Id",
+          "type": "string"
+        },
+        "source_system": {
+          "$ref": "#/$defs/SourceSystem"
+        },
+        "source_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Url"
+        }
+      },
+      "required": [
+        "source_system",
+        "source_id",
+        "observed_at"
+      ],
+      "title": "SourceProvenance",
+      "type": "object"
+    },
+    "SourceSystem": {
+      "description": "External or internal systems that can originate Hoisa records.",
+      "enum": [
+        "hoisa",
+        "github",
+        "human",
+        "runner",
+        "filesystem",
+        "conversation",
+        "slack"
+      ],
+      "title": "SourceSystem",
+      "type": "string"
+    },
+    "TargetRepoRef": {
+      "additionalProperties": false,
+      "description": "Generic repository reference without local paths or access details.",
+      "properties": {
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "owner": {
+          "minLength": 1,
+          "title": "Owner",
+          "type": "string"
+        },
+        "project": {
+          "$ref": "#/$defs/ProjectRef"
+        },
+        "provider": {
+          "$ref": "#/$defs/RepositoryProvider"
+        },
+        "target_repo_id": {
+          "minLength": 1,
+          "title": "Target Repo Id",
+          "type": "string"
+        },
+        "visibility": {
+          "$ref": "#/$defs/RepositoryVisibility"
+        }
+      },
+      "required": [
+        "target_repo_id",
+        "provider",
+        "owner",
+        "name",
+        "visibility",
+        "project"
+      ],
+      "title": "TargetRepoRef",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Captured human direction before it becomes work items.",
+  "properties": {
+    "body": {
+      "minLength": 1,
+      "title": "Body",
+      "type": "string"
+    },
+    "constraints": {
+      "$ref": "#/$defs/DirectiveConstraints"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "directive_id": {
+      "minLength": 1,
+      "title": "Directive Id",
+      "type": "string"
+    },
+    "project": {
+      "$ref": "#/$defs/ProjectRef"
+    },
+    "public_safety": {
+      "$ref": "#/$defs/PublicSafetyClass"
+    },
+    "redaction_status": {
+      "$ref": "#/$defs/RedactionStatus"
+    },
+    "requested_review_route": {
+      "$ref": "#/$defs/ReviewRoute"
+    },
+    "risk": {
+      "$ref": "#/$defs/RiskLevel"
+    },
+    "schema_version": {
+      "default": 1,
+      "minimum": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "source_provenance": {
+      "$ref": "#/$defs/SourceProvenance"
+    },
+    "summary": {
+      "minLength": 1,
+      "title": "Summary",
+      "type": "string"
+    },
+    "target_repo": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TargetRepoRef"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "updated_at": {
+      "format": "date-time",
+      "title": "Updated At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "created_at",
+    "updated_at",
+    "directive_id",
+    "project",
+    "summary",
+    "body",
+    "requested_review_route",
+    "risk",
+    "source_provenance",
+    "public_safety",
+    "redaction_status"
+  ],
+  "title": "Directive",
+  "type": "object"
+}

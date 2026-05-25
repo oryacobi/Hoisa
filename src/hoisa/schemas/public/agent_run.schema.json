@@ -1,0 +1,518 @@
+{
+  "$defs": {
+    "ActorRef": {
+      "additionalProperties": false,
+      "description": "Stable actor reference without leaking channel-specific identity data.",
+      "properties": {
+        "actor_id": {
+          "minLength": 1,
+          "title": "Actor Id",
+          "type": "string"
+        },
+        "actor_type": {
+          "$ref": "#/$defs/ActorType"
+        },
+        "display_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Display Name"
+        }
+      },
+      "required": [
+        "actor_type",
+        "actor_id"
+      ],
+      "title": "ActorRef",
+      "type": "object"
+    },
+    "ActorType": {
+      "description": "Kinds of actors Hoisa records in workflow history.",
+      "enum": [
+        "human",
+        "agent",
+        "service",
+        "system"
+      ],
+      "title": "ActorType",
+      "type": "string"
+    },
+    "CheckStatus": {
+      "description": "Status for checks summarized by an agent run.",
+      "enum": [
+        "passed",
+        "failed",
+        "skipped"
+      ],
+      "title": "CheckStatus",
+      "type": "string"
+    },
+    "CheckSummary": {
+      "additionalProperties": false,
+      "description": "Compact check result for PR handoff and review.",
+      "properties": {
+        "evidence_refs": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/EvidenceRef"
+          },
+          "title": "Evidence Refs",
+          "type": "array"
+        },
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/CheckStatus"
+        },
+        "summary": {
+          "minLength": 1,
+          "title": "Summary",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "status",
+        "summary"
+      ],
+      "title": "CheckSummary",
+      "type": "object"
+    },
+    "CommandSummary": {
+      "additionalProperties": false,
+      "description": "Compact command result without raw logs.",
+      "properties": {
+        "command_label": {
+          "minLength": 1,
+          "title": "Command Label",
+          "type": "string"
+        },
+        "evidence_refs": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/EvidenceRef"
+          },
+          "title": "Evidence Refs",
+          "type": "array"
+        },
+        "exit_code": {
+          "title": "Exit Code",
+          "type": "integer"
+        },
+        "summary": {
+          "minLength": 1,
+          "title": "Summary",
+          "type": "string"
+        }
+      },
+      "required": [
+        "command_label",
+        "exit_code",
+        "summary"
+      ],
+      "title": "CommandSummary",
+      "type": "object"
+    },
+    "ContentHash": {
+      "additionalProperties": false,
+      "description": "Stable content hash without embedding private content.",
+      "properties": {
+        "algorithm": {
+          "minLength": 1,
+          "title": "Algorithm",
+          "type": "string"
+        },
+        "value": {
+          "minLength": 1,
+          "title": "Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "algorithm",
+        "value"
+      ],
+      "title": "ContentHash",
+      "type": "object"
+    },
+    "EvidenceKind": {
+      "description": "Kinds of evidence Hoisa can cite without embedding raw artifacts.",
+      "enum": [
+        "issue",
+        "plan",
+        "pull_request",
+        "check_run",
+        "repo_file",
+        "command_summary",
+        "redacted_summary",
+        "schema_fixture"
+      ],
+      "title": "EvidenceKind",
+      "type": "string"
+    },
+    "EvidenceRef": {
+      "additionalProperties": false,
+      "description": "Reference to evidence with summary and redaction metadata.",
+      "properties": {
+        "content_hash": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ContentHash"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "evidence_id": {
+          "minLength": 1,
+          "title": "Evidence Id",
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/EvidenceKind"
+        },
+        "public_safety": {
+          "$ref": "#/$defs/PublicSafetyClass"
+        },
+        "redaction_status": {
+          "$ref": "#/$defs/RedactionStatus"
+        },
+        "source_provenance": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourceProvenance"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "summary": {
+          "minLength": 1,
+          "title": "Summary",
+          "type": "string"
+        },
+        "uri": {
+          "minLength": 1,
+          "title": "Uri",
+          "type": "string"
+        }
+      },
+      "required": [
+        "evidence_id",
+        "kind",
+        "uri",
+        "summary",
+        "public_safety",
+        "redaction_status"
+      ],
+      "title": "EvidenceRef",
+      "type": "object"
+    },
+    "PublicSafetyClass": {
+      "description": "Classification for records crossing public or review boundaries.",
+      "enum": [
+        "public",
+        "public_safe_sample",
+        "redacted",
+        "private_reference"
+      ],
+      "title": "PublicSafetyClass",
+      "type": "string"
+    },
+    "RedactionStatus": {
+      "description": "Whether a record or reference has been redacted for public use.",
+      "enum": [
+        "not_required",
+        "redacted",
+        "summary_only"
+      ],
+      "title": "RedactionStatus",
+      "type": "string"
+    },
+    "RunBudget": {
+      "additionalProperties": false,
+      "description": "Bounded execution budget for a run.",
+      "properties": {
+        "max_attempts": {
+          "exclusiveMinimum": 0,
+          "title": "Max Attempts",
+          "type": "integer"
+        },
+        "max_minutes": {
+          "exclusiveMinimum": 0,
+          "title": "Max Minutes",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "max_minutes",
+        "max_attempts"
+      ],
+      "title": "RunBudget",
+      "type": "object"
+    },
+    "RunStatus": {
+      "description": "Lifecycle status for a disposable agent run.",
+      "enum": [
+        "started",
+        "completed",
+        "failed",
+        "canceled"
+      ],
+      "title": "RunStatus",
+      "type": "string"
+    },
+    "RunnerProfile": {
+      "additionalProperties": false,
+      "description": "Runner configuration visible to a task packet or run record.",
+      "properties": {
+        "network_access": {
+          "default": false,
+          "title": "Network Access",
+          "type": "boolean"
+        },
+        "profile_name": {
+          "minLength": 1,
+          "title": "Profile Name",
+          "type": "string"
+        },
+        "runner_type": {
+          "minLength": 1,
+          "title": "Runner Type",
+          "type": "string"
+        },
+        "sandbox": {
+          "minLength": 1,
+          "title": "Sandbox",
+          "type": "string"
+        }
+      },
+      "required": [
+        "runner_type",
+        "profile_name",
+        "sandbox"
+      ],
+      "title": "RunnerProfile",
+      "type": "object"
+    },
+    "SourceProvenance": {
+      "additionalProperties": false,
+      "description": "Attribution for source observations and derived records.",
+      "properties": {
+        "content_hash": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ContentHash"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "external_updated_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "External Updated At"
+        },
+        "observed_at": {
+          "format": "date-time",
+          "title": "Observed At",
+          "type": "string"
+        },
+        "public_safety": {
+          "$ref": "#/$defs/PublicSafetyClass",
+          "default": "public"
+        },
+        "source_id": {
+          "minLength": 1,
+          "title": "Source Id",
+          "type": "string"
+        },
+        "source_system": {
+          "$ref": "#/$defs/SourceSystem"
+        },
+        "source_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Url"
+        }
+      },
+      "required": [
+        "source_system",
+        "source_id",
+        "observed_at"
+      ],
+      "title": "SourceProvenance",
+      "type": "object"
+    },
+    "SourceSystem": {
+      "description": "External or internal systems that can originate Hoisa records.",
+      "enum": [
+        "hoisa",
+        "github",
+        "human",
+        "runner",
+        "filesystem",
+        "conversation",
+        "slack"
+      ],
+      "title": "SourceSystem",
+      "type": "string"
+    },
+    "WorkflowStage": {
+      "description": "Workflow stages tracked by Hoisa.",
+      "enum": [
+        "Planning",
+        "Plan Review",
+        "Plan Approval",
+        "Implementation",
+        "Implementation Review",
+        "Implemented"
+      ],
+      "title": "WorkflowStage",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Disposable run attempt for one bounded workflow stage.",
+  "properties": {
+    "agent": {
+      "$ref": "#/$defs/ActorRef"
+    },
+    "budget": {
+      "$ref": "#/$defs/RunBudget"
+    },
+    "check_summaries": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/CheckSummary"
+      },
+      "title": "Check Summaries",
+      "type": "array"
+    },
+    "command_summaries": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/CommandSummary"
+      },
+      "title": "Command Summaries",
+      "type": "array"
+    },
+    "completed_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Completed At"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "evidence_refs": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/EvidenceRef"
+      },
+      "title": "Evidence Refs",
+      "type": "array"
+    },
+    "public_safety": {
+      "$ref": "#/$defs/PublicSafetyClass"
+    },
+    "redaction_status": {
+      "$ref": "#/$defs/RedactionStatus"
+    },
+    "run_id": {
+      "minLength": 1,
+      "title": "Run Id",
+      "type": "string"
+    },
+    "runner_profile": {
+      "$ref": "#/$defs/RunnerProfile"
+    },
+    "schema_version": {
+      "default": 1,
+      "minimum": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "source_provenance": {
+      "$ref": "#/$defs/SourceProvenance"
+    },
+    "started_at": {
+      "format": "date-time",
+      "title": "Started At",
+      "type": "string"
+    },
+    "status": {
+      "$ref": "#/$defs/RunStatus"
+    },
+    "updated_at": {
+      "format": "date-time",
+      "title": "Updated At",
+      "type": "string"
+    },
+    "work_item_id": {
+      "minLength": 1,
+      "title": "Work Item Id",
+      "type": "string"
+    },
+    "workflow_stage": {
+      "$ref": "#/$defs/WorkflowStage"
+    }
+  },
+  "required": [
+    "created_at",
+    "updated_at",
+    "run_id",
+    "work_item_id",
+    "workflow_stage",
+    "runner_profile",
+    "budget",
+    "agent",
+    "status",
+    "started_at",
+    "source_provenance",
+    "public_safety",
+    "redaction_status"
+  ],
+  "title": "AgentRun",
+  "type": "object"
+}

@@ -1,0 +1,63 @@
+{
+  "gate_id": "gate_plan_sample",
+  "created_at": "2026-05-25T12:20:00Z",
+  "updated_at": "2026-05-25T12:25:00Z",
+  "schema_version": 1,
+  "gate_type": "plan_approval",
+  "gate_status": "approved",
+  "work_item_id": "work_item_sample_models",
+  "workflow_stage": "Plan Approval",
+  "risk": "high",
+  "recommendation": "approve",
+  "decision_needed": "Approve the bounded model implementation plan.",
+  "why_human_needed": "The plan defines foundational workflow records.",
+  "authority_granted": "Implement only the approved domain model and schema slice.",
+  "options": [
+    "approve",
+    "request_changes",
+    "request_fresh_review",
+    "defer"
+  ],
+  "evidence_refs": [
+    {
+      "evidence_id": "evidence_plan_sample",
+      "kind": "plan",
+      "uri": "docs/agent-plans/6-sample-models.md",
+      "summary": "Public-safe approved plan.",
+      "content_hash": null,
+      "source_provenance": null,
+      "public_safety": "public_safe_sample",
+      "redaction_status": "not_required"
+    }
+  ],
+  "decision": {
+    "decision": "approve",
+    "decided_by": {
+      "actor_type": "human",
+      "actor_id": "human-reviewer",
+      "display_name": "Human Reviewer"
+    },
+    "decided_at": "2026-05-25T12:24:00Z",
+    "rationale": "Plan reviewed and approved for implementation.",
+    "source_provenance": {
+      "source_system": "human",
+      "source_id": "approval-comment-sample",
+      "observed_at": "2026-05-25T12:24:00Z",
+      "source_url": "https://github.com/example-org/example-repo/issues/6#issuecomment-1",
+      "external_updated_at": null,
+      "content_hash": null,
+      "public_safety": "public_safe_sample"
+    }
+  },
+  "source_provenance": {
+    "source_system": "hoisa",
+    "source_id": "gate-plan-sample",
+    "observed_at": "2026-05-25T12:20:00Z",
+    "source_url": null,
+    "external_updated_at": null,
+    "content_hash": null,
+    "public_safety": "public_safe_sample"
+  },
+  "public_safety": "public_safe_sample",
+  "redaction_status": "not_required"
+}

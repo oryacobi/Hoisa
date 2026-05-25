@@ -1,16 +1,28 @@
-"""Work item domain vocabulary shared by application workflows and ports."""
+"""Work item domain records shared by application workflows and ports."""
 
 from dataclasses import dataclass
-from enum import StrEnum
 
+from pydantic import Field
 
-class WorkflowStage(StrEnum):
-    """Workflow stages that can own runnable Hoisa work."""
+from hoisa.domain.evidence import EvidenceRef
+from hoisa.domain.models import CollectionRoot, HoisaModel
+from hoisa.domain.privacy import PublicSafetyClass, RedactionStatus
+from hoisa.domain.provenance import SourceProvenance
+from hoisa.domain.target_repos import TargetRepoRef
+from hoisa.domain.workflow_state import (
+    QueueStatus,
+    ReviewRoute,
+    RiskLevel,
+    WorkflowStage,
+    WorkItemType,
+)
 
-    PLANNING = "Planning"
-    PLAN_REVIEW = "Plan Review"
-    IMPLEMENTATION = "Implementation"
-    IMPLEMENTATION_REVIEW = "Implementation Review"
+__all__ = [
+    "TrackerIssueRef",
+    "WorkItem",
+    "WorkItemRef",
+    "WorkflowStage",
+]
 
 
 @dataclass(frozen=True, slots=True)
@@ -18,3 +30,36 @@ class WorkItemRef:
     """Tracker-independent reference to a Hoisa work item."""
 
     value: str
+
+
+class TrackerIssueRef(HoisaModel):
+    """Public-safe reference to a tracker issue."""
+
+    tracker_issue_id: str = Field(min_length=1)
+    provider: str = Field(min_length=1)
+    issue_number: int = Field(ge=1)
+    title: str = Field(min_length=1)
+    url: str
+
+
+class WorkItem(CollectionRoot):
+    """Agent-ready unit of Hoisa workflow."""
+
+    work_item_id: str = Field(min_length=1)
+    item_type: WorkItemType
+    title: str = Field(min_length=1)
+    goal: str = Field(min_length=1)
+    target_repo: TargetRepoRef
+    tracker_issue: TrackerIssueRef | None = None
+    workflow_stage: WorkflowStage
+    status: QueueStatus
+    review_route: ReviewRoute
+    risk: RiskLevel
+    quality_status: str = Field(min_length=1)
+    plan_ref: str | None = None
+    pull_request_ref: str | None = None
+    blocker_summaries: tuple[str, ...] = ()
+    evidence_refs: tuple[EvidenceRef, ...] = ()
+    source_provenance: SourceProvenance
+    public_safety: PublicSafetyClass
+    redaction_status: RedactionStatus

@@ -1,0 +1,276 @@
+{
+  "$defs": {
+    "ContentHash": {
+      "additionalProperties": false,
+      "description": "Stable content hash without embedding private content.",
+      "properties": {
+        "algorithm": {
+          "minLength": 1,
+          "title": "Algorithm",
+          "type": "string"
+        },
+        "value": {
+          "minLength": 1,
+          "title": "Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "algorithm",
+        "value"
+      ],
+      "title": "ContentHash",
+      "type": "object"
+    },
+    "EvidenceKind": {
+      "description": "Kinds of evidence Hoisa can cite without embedding raw artifacts.",
+      "enum": [
+        "issue",
+        "plan",
+        "pull_request",
+        "check_run",
+        "repo_file",
+        "command_summary",
+        "redacted_summary",
+        "schema_fixture"
+      ],
+      "title": "EvidenceKind",
+      "type": "string"
+    },
+    "EvidenceRef": {
+      "additionalProperties": false,
+      "description": "Reference to evidence with summary and redaction metadata.",
+      "properties": {
+        "content_hash": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ContentHash"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "evidence_id": {
+          "minLength": 1,
+          "title": "Evidence Id",
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/EvidenceKind"
+        },
+        "public_safety": {
+          "$ref": "#/$defs/PublicSafetyClass"
+        },
+        "redaction_status": {
+          "$ref": "#/$defs/RedactionStatus"
+        },
+        "source_provenance": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourceProvenance"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "summary": {
+          "minLength": 1,
+          "title": "Summary",
+          "type": "string"
+        },
+        "uri": {
+          "minLength": 1,
+          "title": "Uri",
+          "type": "string"
+        }
+      },
+      "required": [
+        "evidence_id",
+        "kind",
+        "uri",
+        "summary",
+        "public_safety",
+        "redaction_status"
+      ],
+      "title": "EvidenceRef",
+      "type": "object"
+    },
+    "PublicSafetyClass": {
+      "description": "Classification for records crossing public or review boundaries.",
+      "enum": [
+        "public",
+        "public_safe_sample",
+        "redacted",
+        "private_reference"
+      ],
+      "title": "PublicSafetyClass",
+      "type": "string"
+    },
+    "RedactionStatus": {
+      "description": "Whether a record or reference has been redacted for public use.",
+      "enum": [
+        "not_required",
+        "redacted",
+        "summary_only"
+      ],
+      "title": "RedactionStatus",
+      "type": "string"
+    },
+    "SourceProvenance": {
+      "additionalProperties": false,
+      "description": "Attribution for source observations and derived records.",
+      "properties": {
+        "content_hash": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ContentHash"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "external_updated_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "External Updated At"
+        },
+        "observed_at": {
+          "format": "date-time",
+          "title": "Observed At",
+          "type": "string"
+        },
+        "public_safety": {
+          "$ref": "#/$defs/PublicSafetyClass",
+          "default": "public"
+        },
+        "source_id": {
+          "minLength": 1,
+          "title": "Source Id",
+          "type": "string"
+        },
+        "source_system": {
+          "$ref": "#/$defs/SourceSystem"
+        },
+        "source_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Url"
+        }
+      },
+      "required": [
+        "source_system",
+        "source_id",
+        "observed_at"
+      ],
+      "title": "SourceProvenance",
+      "type": "object"
+    },
+    "SourceSystem": {
+      "description": "External or internal systems that can originate Hoisa records.",
+      "enum": [
+        "hoisa",
+        "github",
+        "human",
+        "runner",
+        "filesystem",
+        "conversation",
+        "slack"
+      ],
+      "title": "SourceSystem",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Collection-root evidence package for review and audit.",
+  "properties": {
+    "bundle_id": {
+      "minLength": 1,
+      "title": "Bundle Id",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "public_safety": {
+      "$ref": "#/$defs/PublicSafetyClass"
+    },
+    "redaction_status": {
+      "$ref": "#/$defs/RedactionStatus"
+    },
+    "refs": {
+      "items": {
+        "$ref": "#/$defs/EvidenceRef"
+      },
+      "minItems": 1,
+      "title": "Refs",
+      "type": "array"
+    },
+    "schema_version": {
+      "default": 1,
+      "minimum": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "source_provenance": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SourceProvenance"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "subject_id": {
+      "minLength": 1,
+      "title": "Subject Id",
+      "type": "string"
+    },
+    "subject_type": {
+      "minLength": 1,
+      "title": "Subject Type",
+      "type": "string"
+    },
+    "updated_at": {
+      "format": "date-time",
+      "title": "Updated At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "created_at",
+    "updated_at",
+    "bundle_id",
+    "subject_type",
+    "subject_id",
+    "refs",
+    "public_safety",
+    "redaction_status"
+  ],
+  "title": "EvidenceBundle",
+  "type": "object"
+}
