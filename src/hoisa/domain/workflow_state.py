@@ -2,7 +2,7 @@
 
 from pydantic import Field
 
-from hoisa.domain.models import CollectionRoot, HoisaModel, UtcDatetime
+from hoisa.domain.models import BsonObjectId, CollectionRoot, HoisaModel, UtcDatetime
 from hoisa.domain.privacy import PublicSafetyClass, RedactionStatus
 from hoisa.domain.provenance import SourceProvenance
 from hoisa.domain.workflow_vocabulary import (
@@ -57,7 +57,7 @@ class WorkflowState(HoisaModel):
 class WorkflowStateRecord(CollectionRoot):
     """Persisted workflow-state snapshot keyed by work item."""
 
-    work_item_id: str = Field(min_length=1)
+    work_item_id: BsonObjectId
     state: WorkflowState
     source_provenance: SourceProvenance
     public_safety: PublicSafetyClass

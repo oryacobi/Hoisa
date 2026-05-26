@@ -3,7 +3,7 @@
 from pydantic import Field
 
 from hoisa.domain.evidence import EvidenceRef, EvidenceRequirement
-from hoisa.domain.models import CollectionRoot, HoisaModel
+from hoisa.domain.models import BsonObjectId, CollectionRoot, HoisaModel
 from hoisa.domain.privacy import PublicSafetyClass, RedactionStatus
 from hoisa.domain.provenance import SourceProvenance
 from hoisa.domain.runs import RunBudget, RunnerProfile
@@ -22,8 +22,7 @@ class AllowedAction(HoisaModel):
 class TaskPacket(CollectionRoot):
     """Bounded context and authority for one agent run."""
 
-    packet_id: str = Field(min_length=1)
-    work_item_id: str = Field(min_length=1)
+    work_item_id: BsonObjectId
     workflow_stage: WorkflowStage
     target_repo: TargetRepoRef
     objective: str = Field(min_length=1)

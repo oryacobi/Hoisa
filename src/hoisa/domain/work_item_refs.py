@@ -7,4 +7,4 @@ from dataclasses import dataclass
 class WorkItemRef:
     """Tracker-independent reference to a Hoisa work item."""
 
-    value: str
+    id: object

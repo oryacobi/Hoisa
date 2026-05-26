@@ -384,16 +384,16 @@
       "title": "Evidence Refs",
       "type": "array"
     },
-    "gate_id": {
-      "minLength": 1,
-      "title": "Gate Id",
-      "type": "string"
-    },
     "gate_status": {
       "$ref": "#/$defs/GateStatus"
     },
     "gate_type": {
       "$ref": "#/$defs/GateType"
+    },
+    "id": {
+      "pattern": "^[0-9a-fA-F]{24}$",
+      "title": "Id",
+      "type": "string"
     },
     "options": {
       "items": {
@@ -435,7 +435,7 @@
       "type": "string"
     },
     "work_item_id": {
-      "minLength": 1,
+      "pattern": "^[0-9a-fA-F]{24}$",
       "title": "Work Item Id",
       "type": "string"
     },
@@ -446,7 +446,6 @@
   "required": [
     "created_at",
     "updated_at",
-    "gate_id",
     "gate_type",
     "gate_status",
     "work_item_id",

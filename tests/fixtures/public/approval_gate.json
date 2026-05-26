@@ -1,63 +1,46 @@
 {
-  "gate_id": "gate_plan_sample",
-  "created_at": "2026-05-25T12:20:00Z",
-  "updated_at": "2026-05-25T12:25:00Z",
-  "schema_version": 1,
-  "gate_type": "plan_approval",
-  "gate_status": "approved",
-  "work_item_id": "work_item_sample_models",
-  "workflow_stage": "Plan Approval",
-  "risk": "high",
-  "recommendation": "approve",
-  "decision_needed": "Approve the bounded model implementation plan.",
-  "why_human_needed": "The plan defines foundational workflow records.",
   "authority_granted": "Implement only the approved domain model and schema slice.",
-  "options": [
-    "approve",
-    "request_changes",
-    "request_fresh_review",
-    "defer"
-  ],
+  "created_at": "2026-05-25T12:00:00Z",
+  "decision": null,
+  "decision_needed": "Approve the implementation plan.",
   "evidence_refs": [
     {
-      "evidence_id": "evidence_plan_sample",
+      "content_hash": {
+        "algorithm": "sha256",
+        "value": "abc123"
+      },
+      "evidence_id": "evidence-plan",
       "kind": "plan",
-      "uri": "docs/agent-plans/6-sample-models.md",
-      "summary": "Public-safe approved plan.",
-      "content_hash": null,
-      "source_provenance": null,
       "public_safety": "public_safe_sample",
-      "redaction_status": "not_required"
+      "redaction_status": "not_required",
+      "source_provenance": null,
+      "summary": "Public-safe approved plan.",
+      "uri": "docs/agent-plans/6-sample-models.md"
     }
   ],
-  "decision": {
-    "decision": "approve",
-    "decided_by": {
-      "actor_type": "human",
-      "actor_id": "human-reviewer",
-      "display_name": "Human Reviewer"
-    },
-    "decided_at": "2026-05-25T12:24:00Z",
-    "rationale": "Plan reviewed and approved for implementation.",
-    "source_provenance": {
-      "source_system": "human",
-      "source_id": "approval-comment-sample",
-      "observed_at": "2026-05-25T12:24:00Z",
-      "source_url": "https://github.com/example-org/example-repo/issues/6#issuecomment-1",
-      "external_updated_at": null,
-      "content_hash": null,
-      "public_safety": "public_safe_sample"
-    }
-  },
-  "source_provenance": {
-    "source_system": "hoisa",
-    "source_id": "gate-plan-sample",
-    "observed_at": "2026-05-25T12:20:00Z",
-    "source_url": null,
-    "external_updated_at": null,
-    "content_hash": null,
-    "public_safety": "public_safe_sample"
-  },
+  "gate_status": "waiting",
+  "gate_type": "plan_approval",
+  "id": "e58e2486151a986a1f9fd73e",
+  "options": [
+    "approve",
+    "request_changes"
+  ],
   "public_safety": "public_safe_sample",
-  "redaction_status": "not_required"
+  "recommendation": "approve",
+  "redaction_status": "not_required",
+  "risk": "high",
+  "schema_version": 1,
+  "source_provenance": {
+    "content_hash": null,
+    "external_updated_at": null,
+    "observed_at": "2026-05-25T12:00:00Z",
+    "public_safety": "public_safe_sample",
+    "source_id": "source-sample",
+    "source_system": "hoisa",
+    "source_url": "https://github.com/example-org/example-repo/issues/9"
+  },
+  "updated_at": "2026-05-25T12:01:00Z",
+  "why_human_needed": "The plan defines foundational workflow state.",
+  "work_item_id": "d46a97e1c48571b2c948ff6a",
+  "workflow_stage": "Plan Approval"
 }

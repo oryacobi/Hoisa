@@ -8,6 +8,7 @@ from typing import Protocol
 from hoisa.domain.events import EventSubject, WorkflowEvent
 from hoisa.domain.evidence import EvidenceBundle
 from hoisa.domain.gates import ApprovalGate
+from hoisa.domain.models import BsonObjectId
 from hoisa.domain.runs import AgentRun
 from hoisa.domain.sources import SourceConnection, SourceObservation, SyncCursor
 from hoisa.domain.target_repos import Project, RepositoryProvider, TargetRepo
@@ -60,8 +61,8 @@ class RunnableWorkQuery:
     workflow_stage: WorkflowStage
     status: QueueStatus = QueueStatus.TODO
     risk: RiskLevel | None = None
-    project_id: str = ""
-    target_repo_id: str = ""
+    project_id: BsonObjectId | None = None
+    target_repo_id: BsonObjectId | None = None
     now: datetime | None = None
     include_blocked: bool = False
 
@@ -70,7 +71,7 @@ class RunnableWorkQuery:
 class WaitingGateQuery:
     """Query for gates waiting on a human decision."""
 
-    work_item_id: str = ""
+    work_item_id: BsonObjectId | None = None
     tracker_issue_number: int | None = None
 
 
@@ -86,7 +87,7 @@ class LeaseLookupQuery:
 class SourceObservationQuery:
     """Query for source observations by external identity."""
 
-    source_connection_id: str
+    source_connection_id: BsonObjectId
     external_id: str = ""
     content_hash_value: str = ""
 
@@ -95,7 +96,7 @@ class SourceObservationQuery:
 class SyncCursorKey:
     """Stable key for a source sync cursor."""
 
-    source_connection_id: str
+    source_connection_id: BsonObjectId
     cursor_name: str
 
 
@@ -103,7 +104,7 @@ class SyncCursorKey:
 class ToolActionQuery:
     """Query for tool-control records by action surface."""
 
-    project_id: str = ""
+    project_id: BsonObjectId | None = None
     tool_type: str = ""
     action_type: str = ""
 
@@ -124,7 +125,7 @@ class ProjectRepository(Protocol):
         """Save a project snapshot."""
         ...
 
-    async def get(self, project_id: str) -> Project | None:
+    async def get(self, project_id: BsonObjectId) -> Project | None:
         """Return a project by stable ID."""
         ...
 
@@ -140,7 +141,7 @@ class TargetRepoRepository(Protocol):
         """Save a target repository snapshot."""
         ...
 
-    async def get(self, target_repo_id: str) -> TargetRepo | None:
+    async def get(self, target_repo_id: BsonObjectId) -> TargetRepo | None:
         """Return a target repository by stable ID."""
         ...
 
@@ -148,7 +149,7 @@ class TargetRepoRepository(Protocol):
         """Return a target repository by provider, owner, and name."""
         ...
 
-    async def list_by_project(self, project_id: str) -> Sequence[TargetRepo]:
+    async def list_by_project(self, project_id: BsonObjectId) -> Sequence[TargetRepo]:
         """Return repositories for a Hoisa project."""
         ...
 
@@ -160,11 +161,11 @@ class SourceConnectionRepository(Protocol):
         """Save a source connection snapshot."""
         ...
 
-    async def get(self, source_connection_id: str) -> SourceConnection | None:
+    async def get(self, source_connection_id: BsonObjectId) -> SourceConnection | None:
         """Return a source connection by stable ID."""
         ...
 
-    async def list_by_project(self, project_id: str) -> Sequence[SourceConnection]:
+    async def list_by_project(self, project_id: BsonObjectId) -> Sequence[SourceConnection]:
         """Return source connections for a project."""
         ...
 
@@ -176,7 +177,7 @@ class SourceObservationRepository(Protocol):
         """Save a source observation snapshot."""
         ...
 
-    async def get(self, observation_id: str) -> SourceObservation | None:
+    async def get(self, observation_id: BsonObjectId) -> SourceObservation | None:
         """Return a source observation by stable ID."""
         ...
 
@@ -196,7 +197,7 @@ class SyncCursorRepository(Protocol):
         """Return a cursor by source connection and cursor name."""
         ...
 
-    async def list_by_source(self, source_connection_id: str) -> Sequence[SyncCursor]:
+    async def list_by_source(self, source_connection_id: BsonObjectId) -> Sequence[SyncCursor]:
         """Return all cursors for a source connection."""
         ...
 
@@ -208,7 +209,7 @@ class WorkItemRepository(Protocol):
         """Save a work item snapshot."""
         ...
 
-    async def get(self, work_item_id: str) -> WorkItem | None:
+    async def get(self, work_item_id: BsonObjectId) -> WorkItem | None:
         """Return a work item by stable ID."""
         ...
 
@@ -228,7 +229,7 @@ class WorkflowStateRepository(Protocol):
         """Save a workflow state snapshot."""
         ...
 
-    async def get(self, work_item_id: str) -> WorkflowStateRecord | None:
+    async def get(self, work_item_id: BsonObjectId) -> WorkflowStateRecord | None:
         """Return workflow state by work item."""
         ...
 
@@ -252,11 +253,11 @@ class ApprovalGateRepository(Protocol):
         """Save an approval gate snapshot."""
         ...
 
-    async def get(self, gate_id: str) -> ApprovalGate | None:
+    async def get(self, gate_id: BsonObjectId) -> ApprovalGate | None:
         """Return a gate by stable ID."""
         ...
 
-    async def list_by_work_item(self, work_item_id: str) -> Sequence[ApprovalGate]:
+    async def list_by_work_item(self, work_item_id: BsonObjectId) -> Sequence[ApprovalGate]:
         """Return gates attached to a work item."""
         ...
 
@@ -272,11 +273,11 @@ class AgentRunRepository(Protocol):
         """Save an agent run snapshot."""
         ...
 
-    async def get(self, run_id: str) -> AgentRun | None:
+    async def get(self, run_id: BsonObjectId) -> AgentRun | None:
         """Return an agent run by stable ID."""
         ...
 
-    async def list_by_work_item(self, work_item_id: str) -> Sequence[AgentRun]:
+    async def list_by_work_item(self, work_item_id: BsonObjectId) -> Sequence[AgentRun]:
         """Return agent runs for a work item."""
         ...
 
@@ -288,12 +289,12 @@ class EvidenceBundleRepository(Protocol):
         """Save an evidence bundle snapshot."""
         ...
 
-    async def get(self, bundle_id: str) -> EvidenceBundle | None:
+    async def get(self, bundle_id: BsonObjectId) -> EvidenceBundle | None:
         """Return an evidence bundle by stable ID."""
         ...
 
     async def list_by_subject(
-        self, *, subject_type: str, subject_id: str
+        self, *, subject_type: str, subject_id: BsonObjectId
     ) -> Sequence[EvidenceBundle]:
         """Return evidence bundles for a subject."""
         ...
@@ -306,11 +307,11 @@ class ToolConnectionRepository(Protocol):
         """Save a tool connection snapshot."""
         ...
 
-    async def get(self, tool_connection_id: str) -> ToolConnection | None:
+    async def get(self, tool_connection_id: BsonObjectId) -> ToolConnection | None:
         """Return a tool connection by stable ID."""
         ...
 
-    async def list_by_project(self, project_id: str) -> Sequence[ToolConnection]:
+    async def list_by_project(self, project_id: BsonObjectId) -> Sequence[ToolConnection]:
         """Return tool connections for a project."""
         ...
 
@@ -322,7 +323,7 @@ class ToolPolicyRepository(Protocol):
         """Save a tool policy snapshot."""
         ...
 
-    async def get(self, tool_policy_id: str) -> ToolPolicy | None:
+    async def get(self, tool_policy_id: BsonObjectId) -> ToolPolicy | None:
         """Return a tool policy by stable ID."""
         ...
 
@@ -338,7 +339,7 @@ class ActionRequestRepository(Protocol):
         """Save an action request snapshot."""
         ...
 
-    async def get(self, action_request_id: str) -> ActionRequest | None:
+    async def get(self, action_request_id: BsonObjectId) -> ActionRequest | None:
         """Return an action request by stable ID."""
         ...
 
@@ -346,7 +347,7 @@ class ActionRequestRepository(Protocol):
         """Return action requests by status."""
         ...
 
-    async def list_for_gate(self, gate_id: str) -> Sequence[ActionRequest]:
+    async def list_for_gate(self, gate_id: BsonObjectId) -> Sequence[ActionRequest]:
         """Return action requests linked to a required gate."""
         ...
 
@@ -358,11 +359,13 @@ class ToolInvocationRepository(Protocol):
         """Save a tool invocation snapshot."""
         ...
 
-    async def get(self, tool_invocation_id: str) -> ToolInvocation | None:
+    async def get(self, tool_invocation_id: BsonObjectId) -> ToolInvocation | None:
         """Return a tool invocation by stable ID."""
         ...
 
-    async def list_for_action_request(self, action_request_id: str) -> Sequence[ToolInvocation]:
+    async def list_for_action_request(
+        self, action_request_id: BsonObjectId
+    ) -> Sequence[ToolInvocation]:
         """Return invocations for an action request."""
         ...
 
@@ -383,7 +386,7 @@ class WorkflowEventStore(Protocol):
         """Append a workflow event."""
         ...
 
-    async def get(self, event_id: str) -> WorkflowEvent | None:
+    async def get(self, event_id: BsonObjectId) -> WorkflowEvent | None:
         """Return an event by stable ID."""
         ...
 

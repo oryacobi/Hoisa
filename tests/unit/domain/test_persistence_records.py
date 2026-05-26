@@ -1,5 +1,8 @@
 from datetime import UTC, datetime, timedelta
+import hashlib
+from typing import Any, cast
 
+from bson import ObjectId
 from pydantic import ValidationError
 import pytest
 
@@ -42,7 +45,7 @@ from hoisa.domain.workflow_state import (
 
 def test_persistence_collection_roots_carry_versioned_public_safe_metadata() -> None:
     project = Project(
-        project_id="project-sample",
+        id=_id("project-sample"),
         name="Sample Project",
         summary="Public-safe sample project.",
         created_at=_time(),
@@ -52,7 +55,7 @@ def test_persistence_collection_roots_carry_versioned_public_safe_metadata() -> 
         redaction_status=RedactionStatus.NOT_REQUIRED,
     )
     target_repo = TargetRepo(
-        target_repo_id="repo-sample",
+        id=_id("repo-sample"),
         provider=RepositoryProvider.GITHUB,
         owner="example-org",
         name="example-repo",
@@ -73,7 +76,7 @@ def test_persistence_collection_roots_carry_versioned_public_safe_metadata() -> 
 
 def test_source_records_store_summaries_cursors_and_hash_identity() -> None:
     connection = SourceConnection(
-        source_connection_id="source-github",
+        id=_id("source-github"),
         project=_project_ref(),
         source_system=SourceSystem.GITHUB,
         display_name="Example GitHub",
@@ -86,8 +89,8 @@ def test_source_records_store_summaries_cursors_and_hash_identity() -> None:
         redaction_status=RedactionStatus.NOT_REQUIRED,
     )
     observation = SourceObservation(
-        observation_id="observation-1",
-        source_connection_id=connection.source_connection_id,
+        id=_id("observation-1"),
+        source_connection_id=connection.id,
         external_id="issue-9",
         content_hash=_hash(),
         summary="Issue metadata summary.",
@@ -100,8 +103,8 @@ def test_source_records_store_summaries_cursors_and_hash_identity() -> None:
         redaction_status=RedactionStatus.NOT_REQUIRED,
     )
     cursor = SyncCursor(
-        cursor_id="cursor-1",
-        source_connection_id=connection.source_connection_id,
+        id=_id("cursor-1"),
+        source_connection_id=connection.id,
         cursor_name="issues",
         cursor_value="2026-05-25T12:00:00Z",
         created_at=_time(),
@@ -119,8 +122,8 @@ def test_source_records_store_summaries_cursors_and_hash_identity() -> None:
 def test_source_records_reject_missing_required_identity() -> None:
     with pytest.raises(ValidationError):
         SourceObservation(
-            observation_id="",
-            source_connection_id="source-github",
+            id=cast(Any, ""),
+            source_connection_id=_id("source-github"),
             external_id="issue-9",
             content_hash=_hash(),
             summary="Issue metadata summary.",
@@ -135,7 +138,8 @@ def test_source_records_reject_missing_required_identity() -> None:
 
 def test_workflow_state_and_tool_control_records_do_not_authorize_actions() -> None:
     state = WorkflowStateRecord(
-        work_item_id="work-1",
+        id=_id("state-work-1"),
+        work_item_id=_id("work-1"),
         state=WorkflowState(
             stage=WorkflowStage.IMPLEMENTATION,
             status=QueueStatus.IN_PROGRESS,
@@ -154,7 +158,7 @@ def test_workflow_state_and_tool_control_records_do_not_authorize_actions() -> N
         redaction_status=RedactionStatus.NOT_REQUIRED,
     )
     connection = ToolConnection(
-        tool_connection_id="tool-github",
+        id=_id("tool-github"),
         project=_project_ref(),
         tool_type="github",
         display_name="GitHub",
@@ -167,7 +171,7 @@ def test_workflow_state_and_tool_control_records_do_not_authorize_actions() -> N
         redaction_status=RedactionStatus.NOT_REQUIRED,
     )
     policy = ToolPolicy(
-        tool_policy_id="policy-1",
+        id=_id("policy-1"),
         project=_project_ref(),
         tool_type="github",
         action_type="create_pull_request",
@@ -181,13 +185,13 @@ def test_workflow_state_and_tool_control_records_do_not_authorize_actions() -> N
         redaction_status=RedactionStatus.NOT_REQUIRED,
     )
     request = ActionRequest(
-        action_request_id="action-1",
+        id=_id("action-1"),
         project=_project_ref(),
         tool_type="github",
         action_type="create_pull_request",
         status=ActionRequestStatus.GATED,
         summary="Request to open a PR.",
-        required_gate_id="gate-1",
+        required_gate_id=_id("gate-1"),
         created_at=_time(),
         updated_at=_time(),
         source_provenance=_provenance(),
@@ -195,13 +199,13 @@ def test_workflow_state_and_tool_control_records_do_not_authorize_actions() -> N
         redaction_status=RedactionStatus.NOT_REQUIRED,
     )
     invocation = ToolInvocation(
-        tool_invocation_id="invocation-1",
+        id=_id("invocation-1"),
         tool_type="github",
         action_type="create_pull_request",
         status=ToolInvocationStatus.SKIPPED,
         happened_at=_time(),
         summary="Skipped until gate approval.",
-        action_request_id=request.action_request_id,
+        action_request_id=request.id,
         created_at=_time(),
         updated_at=_time(),
         source_provenance=_provenance(),
@@ -221,12 +225,12 @@ def _time(minutes: int = 0) -> datetime:
 
 
 def _project_ref() -> ProjectRef:
-    return ProjectRef(project_id="project-sample", name="Sample Project")
+    return ProjectRef(id=_id("project-sample"), name="Sample Project")
 
 
 def _target_repo_ref() -> TargetRepoRef:
     return TargetRepoRef(
-        target_repo_id="repo-sample",
+        id=_id("repo-sample"),
         provider=RepositoryProvider.GITHUB,
         owner="example-org",
         name="example-repo",
@@ -247,3 +251,7 @@ def _provenance(source_system: SourceSystem = SourceSystem.HOISA) -> SourceProve
 
 def _hash() -> ContentHash:
     return ContentHash(algorithm="sha256", value="abc123")
+
+
+def _id(label: str) -> ObjectId:
+    return ObjectId(hashlib.sha256(label.encode("utf-8")).hexdigest()[:24])

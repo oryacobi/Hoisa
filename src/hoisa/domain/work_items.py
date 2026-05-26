@@ -37,7 +37,6 @@ class TrackerIssueRef(HoisaModel):
 class WorkItem(CollectionRoot):
     """Agent-ready unit of Hoisa workflow."""
 
-    work_item_id: str = Field(min_length=1)
     item_type: WorkItemType
     title: str = Field(min_length=1)
     goal: str = Field(min_length=1)

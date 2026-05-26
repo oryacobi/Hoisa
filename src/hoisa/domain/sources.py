@@ -4,7 +4,7 @@ from enum import StrEnum
 
 from pydantic import Field
 
-from hoisa.domain.models import CollectionRoot
+from hoisa.domain.models import BsonObjectId, CollectionRoot
 from hoisa.domain.privacy import PublicSafetyClass, RedactionStatus
 from hoisa.domain.provenance import ContentHash, SourceProvenance, SourceSystem
 from hoisa.domain.target_repos import ProjectRef, TargetRepoRef
@@ -23,7 +23,6 @@ class SourceConnectionStatus(StrEnum):
 class SourceConnection(CollectionRoot):
     """Configured source Hoisa observes before reducing records."""
 
-    source_connection_id: str = Field(min_length=1)
     project: ProjectRef
     source_system: SourceSystem
     display_name: str = Field(min_length=1)
@@ -37,8 +36,7 @@ class SourceConnection(CollectionRoot):
 class SourceObservation(CollectionRoot):
     """Public-safe summary of an external source observation."""
 
-    observation_id: str = Field(min_length=1)
-    source_connection_id: str = Field(min_length=1)
+    source_connection_id: BsonObjectId
     external_id: str = Field(min_length=1)
     content_hash: ContentHash
     summary: str = Field(min_length=1)
@@ -52,8 +50,7 @@ class SourceObservation(CollectionRoot):
 class SyncCursor(CollectionRoot):
     """Cursor for deterministic incremental source observation."""
 
-    cursor_id: str = Field(min_length=1)
-    source_connection_id: str = Field(min_length=1)
+    source_connection_id: BsonObjectId
     cursor_name: str = Field(min_length=1)
     cursor_value: str = Field(min_length=1)
     source_provenance: SourceProvenance

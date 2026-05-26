@@ -4,7 +4,7 @@ from pydantic import Field
 
 from hoisa.domain.actors import ActorRef
 from hoisa.domain.evidence import EvidenceRef
-from hoisa.domain.models import HoisaModel, UtcDatetime
+from hoisa.domain.models import BsonObjectId, HoisaModel, UtcDatetime
 from hoisa.domain.privacy import PublicSafetyClass, RedactionStatus
 from hoisa.domain.provenance import SourceProvenance
 from hoisa.domain.workflow_event_types import WorkflowEventType
@@ -24,19 +24,19 @@ class EventSubject(HoisaModel):
     """Workflow event subject reference."""
 
     subject_type: str = Field(min_length=1)
-    subject_id: str = Field(min_length=1)
+    subject_id: BsonObjectId
 
 
 class WorkflowEvent(HoisaModel):
     """Structured event for audit, causation, and retrospective queries."""
 
-    event_id: str = Field(min_length=1)
+    id: BsonObjectId
     event_type: WorkflowEventType
     happened_at: UtcDatetime
     actor: ActorRef
     subject: EventSubject
     correlation_id: str = Field(min_length=1)
-    causation_id: str | None = None
+    causation_id: BsonObjectId | None = None
     workflow_stage: WorkflowStage
     risk: RiskLevel
     public_safety: PublicSafetyClass

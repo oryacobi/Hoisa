@@ -1,44 +1,34 @@
 {
-  "bundle_id": "bundle_sample_models",
-  "created_at": "2026-05-25T12:50:00Z",
-  "updated_at": "2026-05-25T12:50:00Z",
-  "schema_version": 1,
-  "subject_type": "work_item",
-  "subject_id": "work_item_sample_models",
+  "created_at": "2026-05-25T12:00:00Z",
+  "id": "ac81617570396b71c91a3615",
+  "public_safety": "public_safe_sample",
+  "redaction_status": "not_required",
   "refs": [
     {
-      "evidence_id": "evidence_plan_sample",
-      "kind": "plan",
-      "uri": "docs/agent-plans/6-sample-models.md",
-      "summary": "Public-safe approved plan.",
       "content_hash": {
         "algorithm": "sha256",
-        "value": "bd4f2d8e9a60123456789abcdef0123456789abcdef0123456789abcdef0456"
+        "value": "abc123"
       },
-      "source_provenance": null,
+      "evidence_id": "evidence-plan",
+      "kind": "plan",
       "public_safety": "public_safe_sample",
-      "redaction_status": "not_required"
-    },
-    {
-      "evidence_id": "evidence_checks_sample",
-      "kind": "check_run",
-      "uri": "checks/sample-pytest",
-      "summary": "Public-safe check summary.",
-      "content_hash": null,
+      "redaction_status": "not_required",
       "source_provenance": null,
-      "public_safety": "public_safe_sample",
-      "redaction_status": "summary_only"
+      "summary": "Public-safe approved plan.",
+      "uri": "docs/agent-plans/6-sample-models.md"
     }
   ],
+  "schema_version": 1,
   "source_provenance": {
-    "source_system": "hoisa",
-    "source_id": "bundle-sample-models",
-    "observed_at": "2026-05-25T12:50:00Z",
-    "source_url": null,
-    "external_updated_at": null,
     "content_hash": null,
-    "public_safety": "public_safe_sample"
+    "external_updated_at": null,
+    "observed_at": "2026-05-25T12:00:00Z",
+    "public_safety": "public_safe_sample",
+    "source_id": "source-sample",
+    "source_system": "hoisa",
+    "source_url": "https://github.com/example-org/example-repo/issues/9"
   },
-  "public_safety": "public_safe_sample",
-  "redaction_status": "summary_only"
+  "subject_id": "d46a97e1c48571b2c948ff6a",
+  "subject_type": "work_item",
+  "updated_at": "2026-05-25T12:01:00Z"
 }

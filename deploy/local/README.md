@@ -92,8 +92,8 @@ This local database is intended to serve one developer's Hoisa installation
 across multiple projects and repositories. Future records should carry explicit
 scope instead of relying on separate public artifacts:
 
-- `project_id`
-- `target_repo_id`
+- `project.id`
+- `target_repo.id`
 - `provider`
 - `owner_or_namespace`
 - `repo_name`

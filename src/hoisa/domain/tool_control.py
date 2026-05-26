@@ -5,7 +5,7 @@ from enum import StrEnum
 from pydantic import Field
 
 from hoisa.domain.evidence import EvidenceRef
-from hoisa.domain.models import CollectionRoot, UtcDatetime
+from hoisa.domain.models import BsonObjectId, CollectionRoot, UtcDatetime
 from hoisa.domain.privacy import PublicSafetyClass, RedactionStatus
 from hoisa.domain.provenance import SourceProvenance
 from hoisa.domain.target_repos import ProjectRef
@@ -51,7 +51,6 @@ class ToolInvocationStatus(StrEnum):
 class ToolConnection(CollectionRoot):
     """Current-state record for a configured tool integration."""
 
-    tool_connection_id: str = Field(min_length=1)
     project: ProjectRef
     tool_type: str = Field(min_length=1)
     display_name: str = Field(min_length=1)
@@ -65,7 +64,6 @@ class ToolConnection(CollectionRoot):
 class ToolPolicy(CollectionRoot):
     """Policy record for a tool action type."""
 
-    tool_policy_id: str = Field(min_length=1)
     project: ProjectRef
     tool_type: str = Field(min_length=1)
     action_type: str = Field(min_length=1)
@@ -80,15 +78,14 @@ class ToolPolicy(CollectionRoot):
 class ActionRequest(CollectionRoot):
     """Requested external action, recorded before execution authority exists."""
 
-    action_request_id: str = Field(min_length=1)
     project: ProjectRef
     tool_type: str = Field(min_length=1)
     action_type: str = Field(min_length=1)
     status: ActionRequestStatus
     summary: str = Field(min_length=1)
-    work_item_id: str | None = None
-    tool_connection_id: str | None = None
-    required_gate_id: str | None = None
+    work_item_id: BsonObjectId | None = None
+    tool_connection_id: BsonObjectId | None = None
+    required_gate_id: BsonObjectId | None = None
     evidence_refs: tuple[EvidenceRef, ...] = ()
     source_provenance: SourceProvenance
     public_safety: PublicSafetyClass
@@ -98,14 +95,13 @@ class ActionRequest(CollectionRoot):
 class ToolInvocation(CollectionRoot):
     """Audited result of a tool invocation attempt."""
 
-    tool_invocation_id: str = Field(min_length=1)
     tool_type: str = Field(min_length=1)
     action_type: str = Field(min_length=1)
     status: ToolInvocationStatus
     happened_at: UtcDatetime
     summary: str = Field(min_length=1)
-    action_request_id: str | None = None
-    tool_connection_id: str | None = None
+    action_request_id: BsonObjectId | None = None
+    tool_connection_id: BsonObjectId | None = None
     evidence_refs: tuple[EvidenceRef, ...] = ()
     source_provenance: SourceProvenance
     public_safety: PublicSafetyClass

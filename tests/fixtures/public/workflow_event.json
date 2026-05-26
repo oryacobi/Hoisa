@@ -1,47 +1,49 @@
 {
-  "event_id": "event_gate_decided_sample",
-  "event_type": "gate.decided",
-  "happened_at": "2026-05-25T13:10:00Z",
   "actor": {
-    "actor_type": "human",
     "actor_id": "human-reviewer",
-    "display_name": "Human Reviewer"
+    "actor_type": "human",
+    "display_name": null
   },
-  "subject": {
-    "subject_type": "approval_gate",
-    "subject_id": "gate_plan_sample"
-  },
-  "correlation_id": "corr-sample-models",
-  "causation_id": "event_gate_created_sample",
-  "workflow_stage": "Plan Approval",
-  "risk": "high",
-  "public_safety": "public_safe_sample",
-  "payload_schema": "gate_decision.v1",
-  "payload": {
-    "gate_id": "gate_plan_sample",
-    "decision": "approve"
-  },
+  "causation_id": "21a7082a234f869c98b571b7",
+  "correlation_id": "corr-1",
+  "event_type": "gate.decided",
   "evidence_refs": [
     {
-      "evidence_id": "evidence_plan_sample",
+      "content_hash": {
+        "algorithm": "sha256",
+        "value": "abc123"
+      },
+      "evidence_id": "evidence-plan",
       "kind": "plan",
-      "uri": "docs/agent-plans/6-sample-models.md",
-      "summary": "Public-safe approved plan.",
-      "content_hash": null,
-      "source_provenance": null,
       "public_safety": "public_safe_sample",
-      "redaction_status": "not_required"
+      "redaction_status": "not_required",
+      "source_provenance": null,
+      "summary": "Public-safe approved plan.",
+      "uri": "docs/agent-plans/6-sample-models.md"
     }
   ],
-  "source_provenance": {
-    "source_system": "human",
-    "source_id": "approval-comment-sample",
-    "observed_at": "2026-05-25T13:10:00Z",
-    "source_url": "https://github.com/example-org/example-repo/issues/6#issuecomment-1",
-    "external_updated_at": null,
-    "content_hash": null,
-    "public_safety": "public_safe_sample"
+  "happened_at": "2026-05-25T12:02:00Z",
+  "id": "5ed90044477c8dc0e1789d66",
+  "payload": {
+    "decision": "approve"
   },
+  "payload_schema": "gate_decision.v1",
+  "public_safety": "public_safe_sample",
   "redaction_status": "not_required",
-  "schema_version": 1
+  "risk": "high",
+  "schema_version": 1,
+  "source_provenance": {
+    "content_hash": null,
+    "external_updated_at": null,
+    "observed_at": "2026-05-25T12:00:00Z",
+    "public_safety": "public_safe_sample",
+    "source_id": "source-sample",
+    "source_system": "human",
+    "source_url": "https://github.com/example-org/example-repo/issues/9"
+  },
+  "subject": {
+    "subject_id": "e58e2486151a986a1f9fd73e",
+    "subject_type": "approval_gate"
+  },
+  "workflow_stage": "Plan Approval"
 }

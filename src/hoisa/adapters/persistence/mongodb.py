@@ -1,6 +1,6 @@
 """MongoDB persistence adapter for Hoisa repositories and events."""
 
-from collections.abc import Awaitable, Callable, Iterable, Mapping, Sequence
+from collections.abc import AsyncIterator, Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import Enum
@@ -15,6 +15,7 @@ from pymongo.errors import DuplicateKeyError, PyMongoError
 from hoisa.domain.events import EventSubject, WorkflowEvent
 from hoisa.domain.evidence import EvidenceBundle
 from hoisa.domain.gates import ApprovalGate, GateStatus
+from hoisa.domain.models import BsonObjectId, CollectionRoot
 from hoisa.domain.runs import AgentRun
 from hoisa.domain.sources import SourceConnection, SourceObservation, SyncCursor
 from hoisa.domain.target_repos import Project, TargetRepo
@@ -38,6 +39,7 @@ from hoisa.ports.persistence import (
     PersistenceError,
     PersistenceProvider,
     ProjectRepository,
+    RecordNotFoundError,
     RepoLookup,
     RunnableWorkQuery,
     SourceConnectionRepository,
@@ -59,7 +61,9 @@ from hoisa.ports.persistence import (
 Document = dict[str, Any]
 Filter = Mapping[str, Any]
 SortKey = tuple[str, int]
+Hint = str | Sequence[SortKey]
 ASCENDING = 1
+DESCENDING = -1
 
 
 @dataclass(frozen=True, slots=True)
@@ -81,27 +85,23 @@ class MongoIndexSpec:
 
 
 @dataclass(frozen=True, slots=True)
-class MongoCollectionSpec:
+class MongoCollectionSpec[T: BaseModel]:
     """Explicit collection mapping for a persisted Hoisa record type."""
 
     collection_name: str
-    id_field: str
-    model_type: type[BaseModel]
+    model_type: type[T]
     duplicate_label: str
     indexes: tuple[MongoIndexSpec, ...] = ()
 
 
-MONGO_COLLECTION_SPECS: tuple[MongoCollectionSpec, ...] = (
+MONGO_COLLECTION_SPECS: tuple[MongoCollectionSpec[Any], ...] = (
     MongoCollectionSpec(
         collection_name="projects",
-        id_field="project_id",
         model_type=Project,
         duplicate_label="project",
-        indexes=(MongoIndexSpec(name="project_id_lookup", keys=(("project_id", ASCENDING),)),),
     ),
     MongoCollectionSpec(
         collection_name="target_repos",
-        id_field="target_repo_id",
         model_type=TargetRepo,
         duplicate_label="target repository",
         indexes=(
@@ -112,21 +112,20 @@ MONGO_COLLECTION_SPECS: tuple[MongoCollectionSpec, ...] = (
             ),
             MongoIndexSpec(
                 name="project_repo_lookup",
-                keys=(("project.project_id", ASCENDING), ("target_repo_id", ASCENDING)),
+                keys=(("project.id", ASCENDING), ("_id", ASCENDING)),
             ),
         ),
     ),
     MongoCollectionSpec(
         collection_name="source_connections",
-        id_field="source_connection_id",
         model_type=SourceConnection,
         duplicate_label="source connection",
         indexes=(
             MongoIndexSpec(
                 name="project_target_source_status_lookup",
                 keys=(
-                    ("project.project_id", ASCENDING),
-                    ("target_repo.target_repo_id", ASCENDING),
+                    ("project.id", ASCENDING),
+                    ("target_repo.id", ASCENDING),
                     ("source_system", ASCENDING),
                     ("status", ASCENDING),
                 ),
@@ -135,7 +134,6 @@ MONGO_COLLECTION_SPECS: tuple[MongoCollectionSpec, ...] = (
     ),
     MongoCollectionSpec(
         collection_name="source_observations",
-        id_field="observation_id",
         model_type=SourceObservation,
         duplicate_label="source observation",
         indexes=(
@@ -160,7 +158,6 @@ MONGO_COLLECTION_SPECS: tuple[MongoCollectionSpec, ...] = (
     ),
     MongoCollectionSpec(
         collection_name="sync_cursors",
-        id_field="cursor_id",
         model_type=SyncCursor,
         duplicate_label="sync cursor",
         indexes=(
@@ -177,7 +174,6 @@ MONGO_COLLECTION_SPECS: tuple[MongoCollectionSpec, ...] = (
     ),
     MongoCollectionSpec(
         collection_name="work_items",
-        id_field="work_item_id",
         model_type=WorkItem,
         duplicate_label="work item tracker issue",
         indexes=(
@@ -192,10 +188,7 @@ MONGO_COLLECTION_SPECS: tuple[MongoCollectionSpec, ...] = (
             ),
             MongoIndexSpec(
                 name="project_target_lookup",
-                keys=(
-                    ("target_repo.project.project_id", ASCENDING),
-                    ("target_repo.target_repo_id", ASCENDING),
-                ),
+                keys=(("target_repo.project.id", ASCENDING), ("target_repo.id", ASCENDING)),
             ),
             MongoIndexSpec(
                 name="workflow_stage_status_risk_created_lookup",
@@ -204,14 +197,13 @@ MONGO_COLLECTION_SPECS: tuple[MongoCollectionSpec, ...] = (
                     ("status", ASCENDING),
                     ("risk", ASCENDING),
                     ("created_at", ASCENDING),
-                    ("work_item_id", ASCENDING),
+                    ("_id", ASCENDING),
                 ),
             ),
         ),
     ),
     MongoCollectionSpec(
         collection_name="workflow_states",
-        id_field="work_item_id",
         model_type=WorkflowStateRecord,
         duplicate_label="workflow state",
         indexes=(
@@ -225,10 +217,7 @@ MONGO_COLLECTION_SPECS: tuple[MongoCollectionSpec, ...] = (
             ),
             MongoIndexSpec(
                 name="lease_worker_expiration_lookup",
-                keys=(
-                    ("state.lease.worker_id", ASCENDING),
-                    ("state.lease.expires_at", ASCENDING),
-                ),
+                keys=(("state.lease.worker_id", ASCENDING), ("state.lease.expires_at", ASCENDING)),
             ),
             MongoIndexSpec(
                 name="updated_work_item_lookup",
@@ -238,7 +227,6 @@ MONGO_COLLECTION_SPECS: tuple[MongoCollectionSpec, ...] = (
     ),
     MongoCollectionSpec(
         collection_name="approval_gates",
-        id_field="gate_id",
         model_type=ApprovalGate,
         duplicate_label="approval gate",
         indexes=(
@@ -252,17 +240,12 @@ MONGO_COLLECTION_SPECS: tuple[MongoCollectionSpec, ...] = (
             ),
             MongoIndexSpec(
                 name="status_created_lookup",
-                keys=(
-                    ("gate_status", ASCENDING),
-                    ("created_at", ASCENDING),
-                    ("gate_id", ASCENDING),
-                ),
+                keys=(("gate_status", ASCENDING), ("created_at", ASCENDING), ("_id", ASCENDING)),
             ),
         ),
     ),
     MongoCollectionSpec(
         collection_name="agent_runs",
-        id_field="run_id",
         model_type=AgentRun,
         duplicate_label="agent run",
         indexes=(
@@ -272,53 +255,42 @@ MONGO_COLLECTION_SPECS: tuple[MongoCollectionSpec, ...] = (
                     ("work_item_id", ASCENDING),
                     ("workflow_stage", ASCENDING),
                     ("started_at", ASCENDING),
-                    ("run_id", ASCENDING),
+                    ("_id", ASCENDING),
                 ),
             ),
         ),
     ),
     MongoCollectionSpec(
         collection_name="evidence_bundles",
-        id_field="bundle_id",
         model_type=EvidenceBundle,
         duplicate_label="evidence bundle",
         indexes=(
             MongoIndexSpec(
                 name="subject_lookup",
-                keys=(
-                    ("subject_type", ASCENDING),
-                    ("subject_id", ASCENDING),
-                    ("bundle_id", ASCENDING),
-                ),
+                keys=(("subject_type", ASCENDING), ("subject_id", ASCENDING), ("_id", ASCENDING)),
             ),
         ),
     ),
     MongoCollectionSpec(
         collection_name="tool_connections",
-        id_field="tool_connection_id",
         model_type=ToolConnection,
         duplicate_label="tool connection",
         indexes=(
             MongoIndexSpec(
                 name="project_tool_status_lookup",
-                keys=(
-                    ("project.project_id", ASCENDING),
-                    ("tool_type", ASCENDING),
-                    ("status", ASCENDING),
-                ),
+                keys=(("project.id", ASCENDING), ("tool_type", ASCENDING), ("status", ASCENDING)),
             ),
         ),
     ),
     MongoCollectionSpec(
         collection_name="tool_policies",
-        id_field="tool_policy_id",
         model_type=ToolPolicy,
         duplicate_label="tool policy",
         indexes=(
             MongoIndexSpec(
                 name="project_tool_action_unique",
                 keys=(
-                    ("project.project_id", ASCENDING),
+                    ("project.id", ASCENDING),
                     ("tool_type", ASCENDING),
                     ("action_type", ASCENDING),
                 ),
@@ -327,7 +299,7 @@ MONGO_COLLECTION_SPECS: tuple[MongoCollectionSpec, ...] = (
             MongoIndexSpec(
                 name="project_tool_action_lookup",
                 keys=(
-                    ("project.project_id", ASCENDING),
+                    ("project.id", ASCENDING),
                     ("tool_type", ASCENDING),
                     ("action_type", ASCENDING),
                 ),
@@ -336,7 +308,6 @@ MONGO_COLLECTION_SPECS: tuple[MongoCollectionSpec, ...] = (
     ),
     MongoCollectionSpec(
         collection_name="action_requests",
-        id_field="action_request_id",
         model_type=ActionRequest,
         duplicate_label="action request",
         indexes=(
@@ -351,7 +322,7 @@ MONGO_COLLECTION_SPECS: tuple[MongoCollectionSpec, ...] = (
             MongoIndexSpec(
                 name="project_tool_action_lookup",
                 keys=(
-                    ("project.project_id", ASCENDING),
+                    ("project.id", ASCENDING),
                     ("tool_type", ASCENDING),
                     ("action_type", ASCENDING),
                 ),
@@ -360,7 +331,6 @@ MONGO_COLLECTION_SPECS: tuple[MongoCollectionSpec, ...] = (
     ),
     MongoCollectionSpec(
         collection_name="tool_invocations",
-        id_field="tool_invocation_id",
         model_type=ToolInvocation,
         duplicate_label="tool invocation",
         indexes=(
@@ -381,7 +351,6 @@ MONGO_COLLECTION_SPECS: tuple[MongoCollectionSpec, ...] = (
     ),
     MongoCollectionSpec(
         collection_name="workflow_events",
-        id_field="event_id",
         model_type=WorkflowEvent,
         duplicate_label="Workflow event",
         indexes=(
@@ -391,7 +360,7 @@ MONGO_COLLECTION_SPECS: tuple[MongoCollectionSpec, ...] = (
                     ("subject.subject_type", ASCENDING),
                     ("subject.subject_id", ASCENDING),
                     ("happened_at", ASCENDING),
-                    ("event_id", ASCENDING),
+                    ("_id", ASCENDING),
                 ),
             ),
             MongoIndexSpec(
@@ -399,18 +368,224 @@ MONGO_COLLECTION_SPECS: tuple[MongoCollectionSpec, ...] = (
                 keys=(
                     ("correlation_id", ASCENDING),
                     ("happened_at", ASCENDING),
-                    ("event_id", ASCENDING),
+                    ("_id", ASCENDING),
                 ),
             ),
             MongoIndexSpec(
                 name="happened_lookup",
-                keys=(("happened_at", ASCENDING), ("event_id", ASCENDING)),
+                keys=(("happened_at", ASCENDING), ("_id", ASCENDING)),
             ),
         ),
     ),
 )
 
-_SPECS_BY_COLLECTION = {spec.collection_name: spec for spec in MONGO_COLLECTION_SPECS}
+
+class MongoAdapter:
+    """Type-directed MongoDB mapper for Hoisa domain records."""
+
+    def __init__(
+        self,
+        client: AsyncMongoClient[Document],
+        *,
+        database_name: str,
+        collection_specs: Sequence[MongoCollectionSpec[Any]] = MONGO_COLLECTION_SPECS,
+        clock: Callable[[], datetime] | None = None,
+    ) -> None:
+        codec_options: CodecOptions[Document] = CodecOptions(tz_aware=True, tzinfo=UTC)
+        self._client = client
+        self._database = client.get_database(database_name, codec_options=codec_options)
+        self._clock = clock or (lambda: datetime.now(UTC))
+        self._specs_by_model = {spec.model_type: spec for spec in collection_specs}
+
+    async def find_one[T: BaseModel](
+        self,
+        model_type: type[T],
+        *,
+        id: BsonObjectId | None = None,
+        query: Filter | None = None,
+        sort: Sequence[SortKey] | None = None,
+        hint: Hint | None = None,
+    ) -> T | None:
+        spec = self._spec_for(model_type)
+        try:
+            document = await self._collection(spec).find_one(
+                self._query(id=id, query=query),
+                sort=list(sort) if sort is not None else None,
+                hint=hint,
+            )
+        except PyMongoError as exc:
+            raise PersistenceError(f"Failed to read {spec.duplicate_label}.") from exc
+        if document is None:
+            return None
+        return self._entity_from_document(model_type, cast(Mapping[str, Any], document))
+
+    async def find[T: BaseModel](
+        self,
+        model_type: type[T],
+        *,
+        query: Filter | None = None,
+        sort: Sequence[SortKey] | None = None,
+        hint: Hint | None = None,
+        limit: int | None = None,
+    ) -> AsyncIterator[T]:
+        spec = self._spec_for(model_type)
+        try:
+            cursor = self._collection(spec).find(
+                self._query(query=query),
+                sort=list(sort) if sort is not None else None,
+                hint=hint,
+            )
+            if limit is not None:
+                cursor = cursor.limit(limit)
+            async for document in cursor:
+                yield self._entity_from_document(model_type, cast(Mapping[str, Any], document))
+        except PyMongoError as exc:
+            raise PersistenceError(f"Failed to list {spec.duplicate_label}.") from exc
+
+    async def find_many[T: BaseModel](
+        self,
+        model_type: type[T],
+        *,
+        query: Filter | None = None,
+        sort: Sequence[SortKey] | None = None,
+        hint: Hint | None = None,
+        limit: int | None = None,
+    ) -> tuple[T, ...]:
+        return tuple(
+            [
+                entity
+                async for entity in self.find(
+                    model_type,
+                    query=query,
+                    sort=sort,
+                    hint=hint,
+                    limit=limit,
+                )
+            ]
+        )
+
+    async def insert_entity[T: BaseModel](self, entity: T) -> None:
+        spec = self._spec_for(type(entity))
+        try:
+            await self._collection(spec).insert_one(self._document_for_entity(entity))
+        except DuplicateKeyError as exc:
+            raise DuplicateRecordError(f"{spec.duplicate_label} already exists.") from exc
+        except PyMongoError as exc:
+            raise PersistenceError(f"Failed to insert {spec.duplicate_label}.") from exc
+
+    async def update_entity[T: BaseModel](self, entity: T) -> None:
+        spec = self._spec_for(type(entity))
+        document = self._document_for_entity(self._touch_updated_at(entity))
+        try:
+            result = await self._collection(spec).replace_one(
+                {"_id": document["_id"]},
+                document,
+                upsert=False,
+            )
+        except DuplicateKeyError as exc:
+            raise DuplicateRecordError(f"Duplicate {spec.duplicate_label}.") from exc
+        except PyMongoError as exc:
+            raise PersistenceError(f"Failed to update {spec.duplicate_label}.") from exc
+        if result.matched_count == 0:
+            raise RecordNotFoundError(f"{spec.duplicate_label} does not exist.")
+
+    async def upsert_entity[T: BaseModel](self, entity: T) -> None:
+        spec = self._spec_for(type(entity))
+        document = self._document_for_entity(self._touch_updated_at(entity))
+        try:
+            await self._collection(spec).replace_one(
+                {"_id": document["_id"]},
+                document,
+                upsert=True,
+            )
+        except DuplicateKeyError as exc:
+            raise DuplicateRecordError(f"Duplicate {spec.duplicate_label}.") from exc
+        except PyMongoError as exc:
+            raise PersistenceError(f"Failed to save {spec.duplicate_label}.") from exc
+
+    async def ensure_indexes(self) -> None:
+        try:
+            for spec in self._specs_by_model.values():
+                models = [self._index_model(index) for index in spec.indexes]
+                if models:
+                    await self._collection(spec).create_indexes(models)
+        except PyMongoError as exc:
+            raise PersistenceError("Failed to ensure MongoDB persistence indexes.") from exc
+
+    async def close(self) -> None:
+        result = self._client.close()
+        if isawaitable(result):
+            await cast(Awaitable[None], result)
+
+    def _spec_for[T: BaseModel](self, model_type: type[T]) -> MongoCollectionSpec[T]:
+        try:
+            return cast(MongoCollectionSpec[T], self._specs_by_model[model_type])
+        except KeyError as exc:
+            raise PersistenceError(f"No MongoDB collection registered for {model_type}.") from exc
+
+    def _collection(self, spec: MongoCollectionSpec[Any]) -> Any:
+        return self._database.get_collection(spec.collection_name)
+
+    def _query(
+        self,
+        *,
+        id: BsonObjectId | None = None,
+        query: Filter | None = None,
+    ) -> Document:
+        filter_query = dict(query or {})
+        if id is not None:
+            filter_query["_id"] = id
+        return cast(Document, self._to_bson_value(filter_query))
+
+    def _document_for_entity(self, entity: BaseModel) -> Document:
+        data = cast(Document, self._to_bson_value(entity.model_dump(mode="python")))
+        document_id = data.pop("id")
+        return {"_id": document_id, **data}
+
+    def _entity_from_document[T: BaseModel](
+        self,
+        model_type: type[T],
+        document: Mapping[str, Any],
+    ) -> T:
+        data = dict(document)
+        data["id"] = data.pop("_id")
+        return model_type.model_validate(self._ensure_utc_datetimes(data))
+
+    def _touch_updated_at[T: BaseModel](self, entity: T) -> T:
+        if isinstance(entity, CollectionRoot):
+            return cast(T, entity.model_copy(update={"updated_at": self._clock()}))
+        return entity
+
+    def _index_model(self, index_spec: MongoIndexSpec) -> IndexModel:
+        kwargs: dict[str, Any] = {
+            "name": index_spec.name,
+            "unique": index_spec.unique,
+        }
+        if index_spec.partial_filter_expression is not None:
+            kwargs["partialFilterExpression"] = dict(index_spec.partial_filter_expression)
+        return IndexModel(list(index_spec.keys), **kwargs)
+
+    def _to_bson_value(self, value: object) -> object:
+        if isinstance(value, datetime):
+            return value.astimezone(UTC)
+        if isinstance(value, Enum):
+            return value.value
+        if isinstance(value, Mapping):
+            return {str(key): self._to_bson_value(nested) for key, nested in value.items()}
+        if isinstance(value, tuple | list):
+            return [self._to_bson_value(nested) for nested in value]
+        return value
+
+    def _ensure_utc_datetimes(self, value: object) -> object:
+        if isinstance(value, datetime):
+            if value.tzinfo is None or value.utcoffset() is None:
+                return value.replace(tzinfo=UTC)
+            return value.astimezone(UTC)
+        if isinstance(value, Mapping):
+            return {str(key): self._ensure_utc_datetimes(nested) for key, nested in value.items()}
+        if isinstance(value, list):
+            return [self._ensure_utc_datetimes(nested) for nested in value]
+        return value
 
 
 class MongoPersistenceProvider(PersistenceProvider):
@@ -422,25 +597,26 @@ class MongoPersistenceProvider(PersistenceProvider):
         *,
         database_name: str,
     ) -> None:
-        self._client = client
+        self.adapter = MongoAdapter(client, database_name=database_name)
         self.database_name = database_name
-        codec_options: CodecOptions[Document] = CodecOptions(tz_aware=True, tzinfo=UTC)
-        self._database = client.get_database(database_name, codec_options=codec_options)
-        self._projects = _MongoProjectRepository(self)
-        self._target_repos = _MongoTargetRepoRepository(self)
-        self._source_connections = _MongoSourceConnectionRepository(self)
-        self._source_observations = _MongoSourceObservationRepository(self)
-        self._sync_cursors = _MongoSyncCursorRepository(self)
-        self._work_items = _MongoWorkItemRepository(self)
-        self._workflow_states = _MongoWorkflowStateRepository(self)
-        self._gates = _MongoApprovalGateRepository(self)
-        self._agent_runs = _MongoAgentRunRepository(self)
-        self._evidence_bundles = _MongoEvidenceBundleRepository(self)
-        self._tool_connections = _MongoToolConnectionRepository(self)
-        self._tool_policies = _MongoToolPolicyRepository(self)
-        self._action_requests = _MongoActionRequestRepository(self)
-        self._tool_invocations = _MongoToolInvocationRepository(self)
-        self._workflow_events = _MongoWorkflowEventStore(self)
+        self._projects = MongoProjectRepository(self.adapter)
+        self._target_repos = MongoTargetRepoRepository(self.adapter)
+        self._source_connections = MongoSourceConnectionRepository(self.adapter)
+        self._source_observations = MongoSourceObservationRepository(self.adapter)
+        self._sync_cursors = MongoSyncCursorRepository(self.adapter)
+        self._workflow_states = MongoWorkflowStateRepository(self.adapter)
+        self._work_items = MongoWorkItemRepository(self.adapter, self._workflow_states)
+        self._gates = MongoApprovalGateRepository(self.adapter, self._work_items)
+        self._agent_runs = MongoAgentRunRepository(self.adapter)
+        self._evidence_bundles = MongoEvidenceBundleRepository(self.adapter)
+        self._tool_connections = MongoToolConnectionRepository(self.adapter)
+        self._tool_policies = MongoToolPolicyRepository(self.adapter)
+        self._action_requests = MongoActionRequestRepository(self.adapter)
+        self._tool_invocations = MongoToolInvocationRepository(
+            self.adapter,
+            self._action_requests,
+        )
+        self._workflow_events = MongoWorkflowEventStore(self.adapter)
 
     @classmethod
     def from_uri(
@@ -461,24 +637,12 @@ class MongoPersistenceProvider(PersistenceProvider):
     async def ensure_indexes(self) -> None:
         """Create all adapter-owned MongoDB indexes."""
 
-        try:
-            for spec in MONGO_COLLECTION_SPECS:
-                models = [
-                    _index_model(index_spec)
-                    for index_spec in spec.indexes
-                    if index_spec.keys != (("_id", ASCENDING),)
-                ]
-                if models:
-                    await self._collection(spec.collection_name).create_indexes(models)
-        except PyMongoError as exc:
-            raise PersistenceError("Failed to ensure MongoDB persistence indexes.") from exc
+        await self.adapter.ensure_indexes()
 
     async def close(self) -> None:
         """Close the underlying MongoDB client."""
 
-        result = self._client.close()
-        if isawaitable(result):
-            await cast(Awaitable[None], result)
+        await self.adapter.close()
 
     @property
     def projects(self) -> ProjectRepository:
@@ -570,133 +734,76 @@ class MongoPersistenceProvider(PersistenceProvider):
 
         return self._workflow_events
 
-    def _collection(self, collection_name: str) -> Any:
-        return self._database.get_collection(collection_name)
 
-
-class _MongoRecordRepository[T: BaseModel]:
-    def __init__(self, provider: MongoPersistenceProvider, collection_name: str) -> None:
-        self._provider = provider
-        self._spec = _SPECS_BY_COLLECTION[collection_name]
-        self._collection_name = collection_name
-        self._model_type = cast(type[T], self._spec.model_type)
-
-    @property
-    def _collection(self) -> Any:
-        return self._provider._collection(self._collection_name)
-
-    async def _save(self, record: T) -> None:
-        document = _document_for_model(record, self._spec.id_field)
-        try:
-            await self._collection.replace_one(
-                {"_id": document["_id"]},
-                document,
-                upsert=True,
-            )
-        except DuplicateKeyError as exc:
-            raise DuplicateRecordError(f"Duplicate {self._spec.duplicate_label}.") from exc
-        except PyMongoError as exc:
-            raise PersistenceError(f"Failed to save {self._spec.duplicate_label}.") from exc
-
-    async def _insert(self, record: T) -> None:
-        document = _document_for_model(record, self._spec.id_field)
-        try:
-            await self._collection.insert_one(document)
-        except DuplicateKeyError as exc:
-            raise DuplicateRecordError(f"{self._spec.duplicate_label} already exists.") from exc
-        except PyMongoError as exc:
-            raise PersistenceError(f"Failed to append {self._spec.duplicate_label}.") from exc
-
-    async def _get(self, stable_id: str) -> T | None:
-        return await self._find_one({"_id": stable_id})
-
-    async def _find_one(self, filter_query: Filter) -> T | None:
-        try:
-            document = await self._collection.find_one(dict(filter_query))
-        except PyMongoError as exc:
-            raise PersistenceError(f"Failed to read {self._spec.duplicate_label}.") from exc
-        if document is None:
-            return None
-        return _model_from_document(self._model_type, cast(Mapping[str, Any], document))
-
-    async def _find_many(self, filter_query: Filter | None = None) -> tuple[T, ...]:
-        try:
-            cursor = self._collection.find(dict(filter_query or {}))
-            documents = await cursor.to_list(length=None)
-        except PyMongoError as exc:
-            raise PersistenceError(f"Failed to list {self._spec.duplicate_label}.") from exc
-        return tuple(
-            _model_from_document(self._model_type, cast(Mapping[str, Any], document))
-            for document in documents
-        )
-
-
-class _MongoProjectRepository(_MongoRecordRepository[Project]):
-    def __init__(self, provider: MongoPersistenceProvider) -> None:
-        super().__init__(provider, "projects")
+class MongoProjectRepository:
+    def __init__(self, adapter: MongoAdapter) -> None:
+        self._adapter = adapter
 
     async def save(self, project: Project) -> None:
-        await self._save(project)
+        await self._adapter.upsert_entity(project)
 
-    async def get(self, project_id: str) -> Project | None:
-        return await self._get(project_id)
+    async def get(self, project_id: BsonObjectId) -> Project | None:
+        return await self._adapter.find_one(Project, id=project_id)
 
     async def list_all(self) -> Sequence[Project]:
-        return _sorted_by_id(await self._find_many(), lambda project: project.project_id)
+        return await self._adapter.find_many(Project, sort=(("_id", ASCENDING),))
 
 
-class _MongoTargetRepoRepository(_MongoRecordRepository[TargetRepo]):
-    def __init__(self, provider: MongoPersistenceProvider) -> None:
-        super().__init__(provider, "target_repos")
+class MongoTargetRepoRepository:
+    def __init__(self, adapter: MongoAdapter) -> None:
+        self._adapter = adapter
 
     async def save(self, target_repo: TargetRepo) -> None:
-        await self._save(target_repo)
+        await self._adapter.upsert_entity(target_repo)
 
-    async def get(self, target_repo_id: str) -> TargetRepo | None:
-        return await self._get(target_repo_id)
+    async def get(self, target_repo_id: BsonObjectId) -> TargetRepo | None:
+        return await self._adapter.find_one(TargetRepo, id=target_repo_id)
 
     async def get_by_provider(self, lookup: RepoLookup) -> TargetRepo | None:
-        return await self._find_one(
-            {
-                "provider": lookup.provider.value,
+        return await self._adapter.find_one(
+            TargetRepo,
+            query={
+                "provider": lookup.provider,
                 "owner": lookup.owner,
                 "name": lookup.name,
-            }
+            },
         )
 
-    async def list_by_project(self, project_id: str) -> Sequence[TargetRepo]:
-        return _sorted_by_id(
-            await self._find_many({"project.project_id": project_id}),
-            lambda repo: repo.target_repo_id,
+    async def list_by_project(self, project_id: BsonObjectId) -> Sequence[TargetRepo]:
+        return await self._adapter.find_many(
+            TargetRepo,
+            query={"project.id": project_id},
+            sort=(("_id", ASCENDING),),
         )
 
 
-class _MongoSourceConnectionRepository(_MongoRecordRepository[SourceConnection]):
-    def __init__(self, provider: MongoPersistenceProvider) -> None:
-        super().__init__(provider, "source_connections")
+class MongoSourceConnectionRepository:
+    def __init__(self, adapter: MongoAdapter) -> None:
+        self._adapter = adapter
 
     async def save(self, connection: SourceConnection) -> None:
-        await self._save(connection)
+        await self._adapter.upsert_entity(connection)
 
-    async def get(self, source_connection_id: str) -> SourceConnection | None:
-        return await self._get(source_connection_id)
+    async def get(self, source_connection_id: BsonObjectId) -> SourceConnection | None:
+        return await self._adapter.find_one(SourceConnection, id=source_connection_id)
 
-    async def list_by_project(self, project_id: str) -> Sequence[SourceConnection]:
-        return _sorted_by_id(
-            await self._find_many({"project.project_id": project_id}),
-            lambda connection: connection.source_connection_id,
+    async def list_by_project(self, project_id: BsonObjectId) -> Sequence[SourceConnection]:
+        return await self._adapter.find_many(
+            SourceConnection,
+            query={"project.id": project_id},
+            sort=(("_id", ASCENDING),),
         )
 
 
-class _MongoSourceObservationRepository(_MongoRecordRepository[SourceObservation]):
-    def __init__(self, provider: MongoPersistenceProvider) -> None:
-        super().__init__(provider, "source_observations")
+class MongoSourceObservationRepository:
+    def __init__(self, adapter: MongoAdapter) -> None:
+        self._adapter = adapter
 
     async def save(self, observation: SourceObservation) -> None:
-        await self._save(observation)
+        await self._adapter.upsert_entity(observation)
 
-    async def get(self, observation_id: str) -> SourceObservation | None:
-        return await self._get(observation_id)
+    async def get(self, observation_id: BsonObjectId) -> SourceObservation | None:
+        return await self._adapter.find_one(SourceObservation, id=observation_id)
 
     async def find_by_source(self, query: SourceObservationQuery) -> Sequence[SourceObservation]:
         filter_query: dict[str, Any] = {"source_connection_id": query.source_connection_id}
@@ -704,89 +811,146 @@ class _MongoSourceObservationRepository(_MongoRecordRepository[SourceObservation
             filter_query["external_id"] = query.external_id
         if query.content_hash_value:
             filter_query["content_hash.value"] = query.content_hash_value
-        return _sorted_by_id(
-            await self._find_many(filter_query),
-            lambda observation: observation.observation_id,
+        return await self._adapter.find_many(
+            SourceObservation,
+            query=filter_query,
+            sort=(("_id", ASCENDING),),
         )
 
 
-class _MongoSyncCursorRepository(_MongoRecordRepository[SyncCursor]):
-    def __init__(self, provider: MongoPersistenceProvider) -> None:
-        super().__init__(provider, "sync_cursors")
+class MongoSyncCursorRepository:
+    def __init__(self, adapter: MongoAdapter) -> None:
+        self._adapter = adapter
 
     async def save(self, cursor: SyncCursor) -> None:
-        await self._save(cursor)
+        await self._adapter.upsert_entity(cursor)
 
     async def get(self, key: SyncCursorKey) -> SyncCursor | None:
-        return await self._find_one(
-            {
+        return await self._adapter.find_one(
+            SyncCursor,
+            query={
                 "source_connection_id": key.source_connection_id,
                 "cursor_name": key.cursor_name,
-            }
+            },
         )
 
-    async def list_by_source(self, source_connection_id: str) -> Sequence[SyncCursor]:
-        return _sorted_by_id(
-            await self._find_many({"source_connection_id": source_connection_id}),
-            lambda cursor: cursor.cursor_id,
+    async def list_by_source(self, source_connection_id: BsonObjectId) -> Sequence[SyncCursor]:
+        return await self._adapter.find_many(
+            SyncCursor,
+            query={"source_connection_id": source_connection_id},
+            sort=(("_id", ASCENDING),),
         )
 
 
-class _MongoWorkItemRepository(_MongoRecordRepository[WorkItem]):
-    def __init__(self, provider: MongoPersistenceProvider) -> None:
-        super().__init__(provider, "work_items")
-        self._workflow_states = _MongoWorkflowStateRepository(provider)
+class MongoWorkItemRepository:
+    def __init__(
+        self,
+        adapter: MongoAdapter,
+        workflow_states: WorkflowStateRepository,
+    ) -> None:
+        self._adapter = adapter
+        self._workflow_states = workflow_states
 
     async def save(self, work_item: WorkItem) -> None:
-        await self._save(work_item)
+        await self._adapter.upsert_entity(work_item)
 
-    async def get(self, work_item_id: str) -> WorkItem | None:
-        return await self._get(work_item_id)
+    async def get(self, work_item_id: BsonObjectId) -> WorkItem | None:
+        return await self._adapter.find_one(WorkItem, id=work_item_id)
 
     async def find_by_tracker_issue(self, *, provider: str, issue_number: int) -> WorkItem | None:
-        return await self._find_one(
-            {
+        return await self._adapter.find_one(
+            WorkItem,
+            query={
                 "tracker_issue.provider": provider,
                 "tracker_issue.issue_number": issue_number,
-            }
+            },
         )
 
     async def find_runnable(self, query: RunnableWorkQuery) -> Sequence[WorkItem]:
         filter_query: dict[str, Any] = {}
-        if query.project_id:
-            filter_query["target_repo.project.project_id"] = query.project_id
-        if query.target_repo_id:
-            filter_query["target_repo.target_repo_id"] = query.target_repo_id
-        work_items = await self._find_many(filter_query)
+        if query.project_id is not None:
+            filter_query["target_repo.project.id"] = query.project_id
+        if query.target_repo_id is not None:
+            filter_query["target_repo.id"] = query.target_repo_id
+        work_items = await self._adapter.find_many(
+            WorkItem,
+            query=filter_query,
+            sort=(("created_at", ASCENDING), ("_id", ASCENDING)),
+        )
         state_records = {
             record.work_item_id: record
-            for record in await self._workflow_states._find_many()
-            if record.work_item_id in {item.work_item_id for item in work_items}
+            for record in await self._adapter.find_many(
+                WorkflowStateRecord,
+                query={"work_item_id": {"$in": [item.id for item in work_items]}},
+            )
         }
-        return _sorted_work_items(
-            work_item
-            for work_item in work_items
-            if _is_runnable(work_item, state_records.get(work_item.work_item_id), query)
+        return tuple(
+            sorted(
+                (
+                    work_item
+                    for work_item in work_items
+                    if self._is_runnable(work_item, state_records.get(work_item.id), query)
+                ),
+                key=lambda item: (item.created_at, str(item.id)),
+            )
         )
 
+    def _is_runnable(
+        self,
+        work_item: WorkItem,
+        state_record: WorkflowStateRecord | None,
+        query: RunnableWorkQuery,
+    ) -> bool:
+        stage = state_record.state.stage if state_record is not None else work_item.workflow_stage
+        status = state_record.state.status if state_record is not None else work_item.status
+        risk = state_record.state.risk if state_record is not None else work_item.risk
+        blockers = state_record.state.blockers if state_record is not None else ()
+        lease = state_record.state.lease if state_record is not None else None
 
-class _MongoWorkflowStateRepository(_MongoRecordRepository[WorkflowStateRecord]):
-    def __init__(self, provider: MongoPersistenceProvider) -> None:
-        super().__init__(provider, "workflow_states")
+        return (
+            stage == query.workflow_stage
+            and status == query.status
+            and (query.risk is None or risk == query.risk)
+            and (query.project_id is None or work_item.target_repo.project.id == query.project_id)
+            and (query.target_repo_id is None or work_item.target_repo.id == query.target_repo_id)
+            and (
+                query.include_blocked
+                or (not work_item.blocker_summaries and not self._has_active_blockers(blockers))
+            )
+            and (query.now is None or lease is None or lease.expires_at <= query.now)
+        )
+
+    def _has_active_blockers(self, blockers: Sequence[Blocker]) -> bool:
+        return any(blocker.resolved_at is None for blocker in blockers)
+
+
+class MongoWorkflowStateRepository:
+    def __init__(self, adapter: MongoAdapter) -> None:
+        self._adapter = adapter
 
     async def save(self, state_record: WorkflowStateRecord) -> None:
-        await self._save(state_record)
+        await self._adapter.upsert_entity(
+            state_record.model_copy(update={"id": state_record.work_item_id})
+        )
 
-    async def get(self, work_item_id: str) -> WorkflowStateRecord | None:
-        return await self._get(work_item_id)
+    async def get(self, work_item_id: BsonObjectId) -> WorkflowStateRecord | None:
+        return await self._adapter.find_one(WorkflowStateRecord, id=work_item_id)
 
     async def list_by_worker(self, query: LeaseLookupQuery) -> Sequence[WorkflowStateRecord]:
-        records = await self._find_many(_lease_worker_filter(query))
-        return _sorted_state_records(record for record in records if record.state.lease is not None)
+        records = await self._adapter.find_many(
+            WorkflowStateRecord,
+            query=self._lease_worker_filter(query),
+            sort=(("updated_at", ASCENDING), ("work_item_id", ASCENDING)),
+        )
+        return tuple(record for record in records if record.state.lease is not None)
 
     async def list_active_leases(self, query: LeaseLookupQuery) -> Sequence[WorkflowStateRecord]:
-        records = await self._find_many(_lease_worker_filter(query))
-        return _sorted_state_records(
+        records = await self._adapter.find_many(
+            WorkflowStateRecord,
+            query=self._lease_worker_filter(query),
+            sort=(("updated_at", ASCENDING), ("work_item_id", ASCENDING)),
+        )
+        return tuple(
             record
             for record in records
             if record.state.lease is not None
@@ -796,37 +960,56 @@ class _MongoWorkflowStateRepository(_MongoRecordRepository[WorkflowStateRecord])
     async def list_expired_leases(self, query: LeaseLookupQuery) -> Sequence[WorkflowStateRecord]:
         if query.now is None:
             return ()
-        records = await self._find_many(_lease_worker_filter(query))
-        return _sorted_state_records(
+        records = await self._adapter.find_many(
+            WorkflowStateRecord,
+            query=self._lease_worker_filter(query),
+            sort=(("updated_at", ASCENDING), ("work_item_id", ASCENDING)),
+        )
+        return tuple(
             record
             for record in records
             if record.state.lease is not None and record.state.lease.expires_at <= query.now
         )
 
+    def _lease_worker_filter(self, query: LeaseLookupQuery) -> dict[str, Any]:
+        if query.worker_id:
+            return {"state.lease.worker_id": query.worker_id}
+        return {"state.lease": {"$ne": None}}
 
-class _MongoApprovalGateRepository(_MongoRecordRepository[ApprovalGate]):
-    def __init__(self, provider: MongoPersistenceProvider) -> None:
-        super().__init__(provider, "approval_gates")
-        self._work_items = _MongoWorkItemRepository(provider)
+
+class MongoApprovalGateRepository:
+    def __init__(
+        self,
+        adapter: MongoAdapter,
+        work_items: WorkItemRepository,
+    ) -> None:
+        self._adapter = adapter
+        self._work_items = work_items
 
     async def save(self, gate: ApprovalGate) -> None:
-        await self._save(gate)
+        await self._adapter.upsert_entity(gate)
 
-    async def get(self, gate_id: str) -> ApprovalGate | None:
-        return await self._get(gate_id)
+    async def get(self, gate_id: BsonObjectId) -> ApprovalGate | None:
+        return await self._adapter.find_one(ApprovalGate, id=gate_id)
 
-    async def list_by_work_item(self, work_item_id: str) -> Sequence[ApprovalGate]:
-        return _sorted_gates(
-            await self._find_many({"work_item_id": work_item_id}),
+    async def list_by_work_item(self, work_item_id: BsonObjectId) -> Sequence[ApprovalGate]:
+        return await self._adapter.find_many(
+            ApprovalGate,
+            query={"work_item_id": work_item_id},
+            sort=(("created_at", ASCENDING), ("_id", ASCENDING)),
         )
 
     async def list_waiting(self, query: WaitingGateQuery) -> Sequence[ApprovalGate]:
-        filter_query: dict[str, Any] = {"gate_status": GateStatus.WAITING.value}
-        if query.work_item_id:
+        filter_query: dict[str, Any] = {"gate_status": GateStatus.WAITING}
+        if query.work_item_id is not None:
             filter_query["work_item_id"] = query.work_item_id
-        gates = await self._find_many(filter_query)
+        gates = await self._adapter.find_many(
+            ApprovalGate,
+            query=filter_query,
+            sort=(("created_at", ASCENDING), ("_id", ASCENDING)),
+        )
         if query.tracker_issue_number is None:
-            return _sorted_gates(gates)
+            return gates
         matched: list[ApprovalGate] = []
         for gate in gates:
             work_item = await self._work_items.get(gate.work_item_id)
@@ -836,116 +1019,141 @@ class _MongoApprovalGateRepository(_MongoRecordRepository[ApprovalGate]):
                 and work_item.tracker_issue.issue_number == query.tracker_issue_number
             ):
                 matched.append(gate)
-        return _sorted_gates(matched)
+        return tuple(matched)
 
 
-class _MongoAgentRunRepository(_MongoRecordRepository[AgentRun]):
-    def __init__(self, provider: MongoPersistenceProvider) -> None:
-        super().__init__(provider, "agent_runs")
+class MongoAgentRunRepository:
+    def __init__(self, adapter: MongoAdapter) -> None:
+        self._adapter = adapter
 
     async def save(self, run: AgentRun) -> None:
-        await self._save(run)
+        await self._adapter.upsert_entity(run)
 
-    async def get(self, run_id: str) -> AgentRun | None:
-        return await self._get(run_id)
+    async def get(self, run_id: BsonObjectId) -> AgentRun | None:
+        return await self._adapter.find_one(AgentRun, id=run_id)
 
-    async def list_by_work_item(self, work_item_id: str) -> Sequence[AgentRun]:
-        return _sorted_by_id(
-            await self._find_many({"work_item_id": work_item_id}),
-            lambda run: run.run_id,
+    async def list_by_work_item(self, work_item_id: BsonObjectId) -> Sequence[AgentRun]:
+        return await self._adapter.find_many(
+            AgentRun,
+            query={"work_item_id": work_item_id},
+            sort=(("started_at", ASCENDING), ("_id", ASCENDING)),
         )
 
 
-class _MongoEvidenceBundleRepository(_MongoRecordRepository[EvidenceBundle]):
-    def __init__(self, provider: MongoPersistenceProvider) -> None:
-        super().__init__(provider, "evidence_bundles")
+class MongoEvidenceBundleRepository:
+    def __init__(self, adapter: MongoAdapter) -> None:
+        self._adapter = adapter
 
     async def save(self, bundle: EvidenceBundle) -> None:
-        await self._save(bundle)
+        await self._adapter.upsert_entity(bundle)
 
-    async def get(self, bundle_id: str) -> EvidenceBundle | None:
-        return await self._get(bundle_id)
+    async def get(self, bundle_id: BsonObjectId) -> EvidenceBundle | None:
+        return await self._adapter.find_one(EvidenceBundle, id=bundle_id)
 
     async def list_by_subject(
-        self, *, subject_type: str, subject_id: str
+        self, *, subject_type: str, subject_id: BsonObjectId
     ) -> Sequence[EvidenceBundle]:
-        return _sorted_by_id(
-            await self._find_many({"subject_type": subject_type, "subject_id": subject_id}),
-            lambda bundle: bundle.bundle_id,
+        return await self._adapter.find_many(
+            EvidenceBundle,
+            query={"subject_type": subject_type, "subject_id": subject_id},
+            sort=(("_id", ASCENDING),),
         )
 
 
-class _MongoToolConnectionRepository(_MongoRecordRepository[ToolConnection]):
-    def __init__(self, provider: MongoPersistenceProvider) -> None:
-        super().__init__(provider, "tool_connections")
+class MongoToolConnectionRepository:
+    def __init__(self, adapter: MongoAdapter) -> None:
+        self._adapter = adapter
 
     async def save(self, connection: ToolConnection) -> None:
-        await self._save(connection)
+        await self._adapter.upsert_entity(connection)
 
-    async def get(self, tool_connection_id: str) -> ToolConnection | None:
-        return await self._get(tool_connection_id)
+    async def get(self, tool_connection_id: BsonObjectId) -> ToolConnection | None:
+        return await self._adapter.find_one(ToolConnection, id=tool_connection_id)
 
-    async def list_by_project(self, project_id: str) -> Sequence[ToolConnection]:
-        return _sorted_by_id(
-            await self._find_many({"project.project_id": project_id}),
-            lambda connection: connection.tool_connection_id,
+    async def list_by_project(self, project_id: BsonObjectId) -> Sequence[ToolConnection]:
+        return await self._adapter.find_many(
+            ToolConnection,
+            query={"project.id": project_id},
+            sort=(("_id", ASCENDING),),
         )
 
 
-class _MongoToolPolicyRepository(_MongoRecordRepository[ToolPolicy]):
-    def __init__(self, provider: MongoPersistenceProvider) -> None:
-        super().__init__(provider, "tool_policies")
+class MongoToolPolicyRepository:
+    def __init__(self, adapter: MongoAdapter) -> None:
+        self._adapter = adapter
 
     async def save(self, policy: ToolPolicy) -> None:
-        await self._save(policy)
+        await self._adapter.upsert_entity(policy)
 
-    async def get(self, tool_policy_id: str) -> ToolPolicy | None:
-        return await self._get(tool_policy_id)
+    async def get(self, tool_policy_id: BsonObjectId) -> ToolPolicy | None:
+        return await self._adapter.find_one(ToolPolicy, id=tool_policy_id)
 
     async def find_for_action(self, query: ToolActionQuery) -> Sequence[ToolPolicy]:
-        return _sorted_by_id(
-            await self._find_many(_tool_action_filter(query)),
-            lambda policy: policy.tool_policy_id,
+        return await self._adapter.find_many(
+            ToolPolicy,
+            query=self._tool_action_filter(query),
+            sort=(("_id", ASCENDING),),
         )
 
+    def _tool_action_filter(self, query: ToolActionQuery) -> dict[str, Any]:
+        filter_query: dict[str, Any] = {}
+        if query.tool_type:
+            filter_query["tool_type"] = query.tool_type
+        if query.action_type:
+            filter_query["action_type"] = query.action_type
+        if query.project_id is not None:
+            filter_query["project.id"] = query.project_id
+        return filter_query
 
-class _MongoActionRequestRepository(_MongoRecordRepository[ActionRequest]):
-    def __init__(self, provider: MongoPersistenceProvider) -> None:
-        super().__init__(provider, "action_requests")
+
+class MongoActionRequestRepository:
+    def __init__(self, adapter: MongoAdapter) -> None:
+        self._adapter = adapter
 
     async def save(self, request: ActionRequest) -> None:
-        await self._save(request)
+        await self._adapter.upsert_entity(request)
 
-    async def get(self, action_request_id: str) -> ActionRequest | None:
-        return await self._get(action_request_id)
+    async def get(self, action_request_id: BsonObjectId) -> ActionRequest | None:
+        return await self._adapter.find_one(ActionRequest, id=action_request_id)
 
     async def list_by_status(self, status: ActionRequestStatus) -> Sequence[ActionRequest]:
-        return _sorted_by_id(
-            await self._find_many({"status": status.value}),
-            lambda request: request.action_request_id,
+        return await self._adapter.find_many(
+            ActionRequest,
+            query={"status": status},
+            sort=(("created_at", ASCENDING), ("_id", ASCENDING)),
         )
 
-    async def list_for_gate(self, gate_id: str) -> Sequence[ActionRequest]:
-        return _sorted_by_id(
-            await self._find_many({"required_gate_id": gate_id}),
-            lambda request: request.action_request_id,
+    async def list_for_gate(self, gate_id: BsonObjectId) -> Sequence[ActionRequest]:
+        return await self._adapter.find_many(
+            ActionRequest,
+            query={"required_gate_id": gate_id},
+            sort=(("created_at", ASCENDING), ("_id", ASCENDING)),
         )
 
 
-class _MongoToolInvocationRepository(_MongoRecordRepository[ToolInvocation]):
-    def __init__(self, provider: MongoPersistenceProvider) -> None:
-        super().__init__(provider, "tool_invocations")
-        self._action_requests = _MongoActionRequestRepository(provider)
+class MongoToolInvocationRepository:
+    def __init__(
+        self,
+        adapter: MongoAdapter,
+        action_requests: ActionRequestRepository,
+    ) -> None:
+        self._adapter = adapter
+        self._action_requests = action_requests
 
     async def save(self, invocation: ToolInvocation) -> None:
-        await self._save(invocation)
+        await self._adapter.upsert_entity(invocation)
 
-    async def get(self, tool_invocation_id: str) -> ToolInvocation | None:
-        return await self._get(tool_invocation_id)
+    async def get(self, tool_invocation_id: BsonObjectId) -> ToolInvocation | None:
+        return await self._adapter.find_one(ToolInvocation, id=tool_invocation_id)
 
-    async def list_for_action_request(self, action_request_id: str) -> Sequence[ToolInvocation]:
-        return _sorted_invocations(
-            await self._find_many({"action_request_id": action_request_id}),
+    async def list_for_action_request(
+        self,
+        action_request_id: BsonObjectId,
+    ) -> Sequence[ToolInvocation]:
+        return await self._adapter.find_many(
+            ToolInvocation,
+            query={"action_request_id": action_request_id},
+            sort=(("happened_at", ASCENDING), ("_id", ASCENDING)),
         )
 
     async def list_by_tool_action(
@@ -960,165 +1168,57 @@ class _MongoToolInvocationRepository(_MongoRecordRepository[ToolInvocation]):
         if query.action_type:
             filter_query["action_type"] = query.action_type
         if status is not None:
-            filter_query["status"] = status.value
-        invocations = await self._find_many(filter_query)
-        if not query.project_id:
-            return _sorted_invocations(invocations)
+            filter_query["status"] = status
+        invocations = await self._adapter.find_many(
+            ToolInvocation,
+            query=filter_query,
+            sort=(("happened_at", ASCENDING), ("_id", ASCENDING)),
+        )
+        if query.project_id is None:
+            return invocations
         matched: list[ToolInvocation] = []
         for invocation in invocations:
             if invocation.action_request_id is None:
                 continue
             request = await self._action_requests.get(invocation.action_request_id)
-            if request is not None and request.project.project_id == query.project_id:
+            if request is not None and request.project.id == query.project_id:
                 matched.append(invocation)
-        return _sorted_invocations(matched)
+        return tuple(matched)
 
 
-class _MongoWorkflowEventStore(_MongoRecordRepository[WorkflowEvent]):
-    def __init__(self, provider: MongoPersistenceProvider) -> None:
-        super().__init__(provider, "workflow_events")
+class MongoWorkflowEventStore:
+    def __init__(self, adapter: MongoAdapter) -> None:
+        self._adapter = adapter
 
     async def append(self, event: WorkflowEvent) -> None:
-        await self._insert(event)
+        await self._adapter.insert_entity(event)
 
-    async def get(self, event_id: str) -> WorkflowEvent | None:
-        return await self._get(event_id)
+    async def get(self, event_id: BsonObjectId) -> WorkflowEvent | None:
+        return await self._adapter.find_one(WorkflowEvent, id=event_id)
 
     async def list_for_subject(self, subject: EventSubject) -> Sequence[WorkflowEvent]:
-        return _sorted_events(
-            await self._find_many(
-                {
-                    "subject.subject_type": subject.subject_type,
-                    "subject.subject_id": subject.subject_id,
-                }
-            )
+        return await self._adapter.find_many(
+            WorkflowEvent,
+            query={
+                "subject.subject_type": subject.subject_type,
+                "subject.subject_id": subject.subject_id,
+            },
+            sort=(("happened_at", ASCENDING), ("_id", ASCENDING)),
         )
 
     async def list_for_correlation(self, correlation_id: str) -> Sequence[WorkflowEvent]:
-        return _sorted_events(await self._find_many({"correlation_id": correlation_id}))
+        return await self._adapter.find_many(
+            WorkflowEvent,
+            query={"correlation_id": correlation_id},
+            sort=(("happened_at", ASCENDING), ("_id", ASCENDING)),
+        )
 
     async def list_recent(self, *, limit: int) -> Sequence[WorkflowEvent]:
         if limit <= 0:
             return ()
-        return _sorted_events(await self._find_many())[-limit:]
-
-
-def _index_model(index_spec: MongoIndexSpec) -> IndexModel:
-    kwargs: dict[str, Any] = {
-        "name": index_spec.name,
-        "unique": index_spec.unique,
-    }
-    if index_spec.partial_filter_expression is not None:
-        kwargs["partialFilterExpression"] = dict(index_spec.partial_filter_expression)
-    return IndexModel(list(index_spec.keys), **kwargs)
-
-
-def _document_for_model(model: BaseModel, id_field: str) -> Document:
-    data = cast(Document, _to_bson_value(model.model_dump(mode="python")))
-    data["_id"] = data[id_field]
-    return data
-
-
-def _model_from_document[T: BaseModel](
-    model_type: type[T],
-    document: Mapping[str, Any],
-) -> T:
-    data = dict(document)
-    data.pop("_id", None)
-    return model_type.model_validate(_ensure_utc_datetimes(data))
-
-
-def _to_bson_value(value: object) -> object:
-    if isinstance(value, datetime):
-        return value.astimezone(UTC)
-    if isinstance(value, Enum):
-        return value.value
-    if isinstance(value, Mapping):
-        return {str(key): _to_bson_value(nested) for key, nested in value.items()}
-    if isinstance(value, tuple | list):
-        return [_to_bson_value(nested) for nested in value]
-    return value
-
-
-def _ensure_utc_datetimes(value: object) -> object:
-    if isinstance(value, datetime):
-        if value.tzinfo is None or value.utcoffset() is None:
-            return value.replace(tzinfo=UTC)
-        return value.astimezone(UTC)
-    if isinstance(value, Mapping):
-        return {str(key): _ensure_utc_datetimes(nested) for key, nested in value.items()}
-    if isinstance(value, list):
-        return [_ensure_utc_datetimes(nested) for nested in value]
-    return value
-
-
-def _lease_worker_filter(query: LeaseLookupQuery) -> dict[str, Any]:
-    if query.worker_id:
-        return {"state.lease.worker_id": query.worker_id}
-    return {"state.lease": {"$ne": None}}
-
-
-def _tool_action_filter(query: ToolActionQuery) -> dict[str, Any]:
-    filter_query: dict[str, Any] = {}
-    if query.tool_type:
-        filter_query["tool_type"] = query.tool_type
-    if query.action_type:
-        filter_query["action_type"] = query.action_type
-    if query.project_id:
-        filter_query["project.project_id"] = query.project_id
-    return filter_query
-
-
-def _is_runnable(
-    work_item: WorkItem,
-    state_record: WorkflowStateRecord | None,
-    query: RunnableWorkQuery,
-) -> bool:
-    stage = state_record.state.stage if state_record is not None else work_item.workflow_stage
-    status = state_record.state.status if state_record is not None else work_item.status
-    risk = state_record.state.risk if state_record is not None else work_item.risk
-    blockers = state_record.state.blockers if state_record is not None else ()
-    lease = state_record.state.lease if state_record is not None else None
-
-    return (
-        stage == query.workflow_stage
-        and status == query.status
-        and (query.risk is None or risk == query.risk)
-        and (not query.project_id or work_item.target_repo.project.project_id == query.project_id)
-        and (
-            not query.target_repo_id or work_item.target_repo.target_repo_id == query.target_repo_id
+        events = await self._adapter.find_many(
+            WorkflowEvent,
+            sort=(("happened_at", DESCENDING), ("_id", DESCENDING)),
+            limit=limit,
         )
-        and (
-            query.include_blocked
-            or (not work_item.blocker_summaries and not _has_active_blockers(blockers))
-        )
-        and (query.now is None or lease is None or lease.expires_at <= query.now)
-    )
-
-
-def _has_active_blockers(blockers: Sequence[Blocker]) -> bool:
-    return any(blocker.resolved_at is None for blocker in blockers)
-
-
-def _sorted_by_id[T](items: Iterable[T], key: Callable[[T], str]) -> tuple[T, ...]:
-    return tuple(sorted(items, key=key))
-
-
-def _sorted_work_items(items: Iterable[WorkItem]) -> tuple[WorkItem, ...]:
-    return tuple(sorted(items, key=lambda item: (item.created_at, item.work_item_id)))
-
-
-def _sorted_state_records(items: Iterable[WorkflowStateRecord]) -> tuple[WorkflowStateRecord, ...]:
-    return tuple(sorted(items, key=lambda item: (item.updated_at, item.work_item_id)))
-
-
-def _sorted_gates(items: Iterable[ApprovalGate]) -> tuple[ApprovalGate, ...]:
-    return tuple(sorted(items, key=lambda item: (item.created_at, item.gate_id)))
-
-
-def _sorted_invocations(items: Iterable[ToolInvocation]) -> tuple[ToolInvocation, ...]:
-    return tuple(sorted(items, key=lambda item: (item.happened_at, item.tool_invocation_id)))
-
-
-def _sorted_events(items: Iterable[WorkflowEvent]) -> tuple[WorkflowEvent, ...]:
-    return tuple(sorted(items, key=lambda item: (item.happened_at, item.event_id)))
+        return tuple(reversed(events))

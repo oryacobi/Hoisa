@@ -1,5 +1,7 @@
 from datetime import UTC, datetime
+import hashlib
 
+from bson import ObjectId
 from pydantic import ValidationError
 import pytest
 
@@ -30,7 +32,7 @@ from hoisa.domain.workflow_state import ReviewRoute, RiskLevel, WorkflowStage
 
 def test_collection_roots_normalize_timezone_aware_timestamps() -> None:
     directive = Directive(
-        directive_id="directive-1",
+        id=_id("directive-1"),
         created_at=datetime(2026, 5, 25, 8, 0, tzinfo=UTC),
         updated_at=datetime(2026, 5, 25, 8, 5, tzinfo=UTC),
         project=_project(),
@@ -44,7 +46,7 @@ def test_collection_roots_normalize_timezone_aware_timestamps() -> None:
         redaction_status=RedactionStatus.NOT_REQUIRED,
     )
 
-    assert directive.directive_id == "directive-1"
+    assert directive.id == _id("directive-1")
     assert directive.created_at.tzinfo == UTC
     assert directive.schema_version == 1
 
@@ -52,7 +54,7 @@ def test_collection_roots_normalize_timezone_aware_timestamps() -> None:
 def test_naive_datetimes_are_rejected() -> None:
     with pytest.raises(ValidationError, match="timezone-aware"):
         Directive(
-            directive_id="directive-1",
+            id=_id("directive-1"),
             created_at=datetime(2026, 5, 25, 8, 0),
             updated_at=datetime(2026, 5, 25, 8, 5, tzinfo=UTC),
             project=_project(),
@@ -84,12 +86,12 @@ def test_gate_records_exact_authority_and_decision_context() -> None:
         source_provenance=_provenance(source_system=SourceSystem.HUMAN),
     )
     gate = ApprovalGate(
-        gate_id="gate-1",
+        id=_id("gate-1"),
         created_at=datetime(2026, 5, 25, 8, 30, tzinfo=UTC),
         updated_at=datetime(2026, 5, 25, 9, 0, tzinfo=UTC),
         gate_type=GateType.PLAN_APPROVAL,
         gate_status=GateStatus.APPROVED,
-        work_item_id="work-1",
+        work_item_id=_id("work-1"),
         workflow_stage=WorkflowStage.PLAN_APPROVAL,
         risk=RiskLevel.HIGH,
         recommendation=GateRecommendation.APPROVE,
@@ -117,8 +119,8 @@ def test_gate_records_exact_authority_and_decision_context() -> None:
 
 def test_task_packets_bound_context_actions_budget_and_evidence_requirements() -> None:
     packet = TaskPacket(
-        packet_id="packet-1",
-        work_item_id="work-1",
+        id=_id("packet-1"),
+        work_item_id=_id("work-1"),
         created_at=datetime(2026, 5, 25, 10, 0, tzinfo=UTC),
         updated_at=datetime(2026, 5, 25, 10, 0, tzinfo=UTC),
         workflow_stage=WorkflowStage.IMPLEMENTATION,
@@ -155,13 +157,13 @@ def test_task_packets_bound_context_actions_budget_and_evidence_requirements() -
 
 def test_workflow_events_carry_correlation_provenance_and_evidence() -> None:
     event = WorkflowEvent(
-        event_id="event-1",
+        id=_id("event-1"),
         event_type=WorkflowEventType.GATE_DECIDED,
         happened_at=datetime(2026, 5, 25, 11, 0, tzinfo=UTC),
         actor=ActorRef(actor_type=ActorType.HUMAN, actor_id="human-reviewer"),
-        subject=EventSubject(subject_type="approval_gate", subject_id="gate-1"),
+        subject=EventSubject(subject_type="approval_gate", subject_id=_id("gate-1")),
         correlation_id="corr-1",
-        causation_id="event-0",
+        causation_id=_id("event-0"),
         workflow_stage=WorkflowStage.PLAN_APPROVAL,
         risk=RiskLevel.HIGH,
         public_safety=PublicSafetyClass.PUBLIC_SAFE_SAMPLE,
@@ -178,12 +180,12 @@ def test_workflow_events_carry_correlation_provenance_and_evidence() -> None:
 
 
 def _project() -> ProjectRef:
-    return ProjectRef(project_id="project-sample", name="Hoisa Sample")
+    return ProjectRef(id=_id("project-sample"), name="Hoisa Sample")
 
 
 def _repo() -> TargetRepoRef:
     return TargetRepoRef(
-        target_repo_id="repo-sample",
+        id=_id("repo-sample"),
         provider=RepositoryProvider.GITHUB,
         owner="example-org",
         name="example-repo",
@@ -220,3 +222,7 @@ def _runner_profile() -> RunnerProfile:
         sandbox="workspace",
         network_access=False,
     )
+
+
+def _id(label: str) -> ObjectId:
+    return ObjectId(hashlib.sha256(label.encode("utf-8")).hexdigest()[:24])

@@ -1,58 +1,63 @@
 {
-  "work_item_id": "work_item_sample_models",
-  "created_at": "2026-05-25T12:10:00Z",
-  "updated_at": "2026-05-25T12:15:00Z",
-  "schema_version": 1,
-  "item_type": "task",
-  "title": "Define core workflow records",
-  "goal": "Create public-safe Pydantic records for Hoisa orchestration.",
-  "target_repo": {
-    "target_repo_id": "repo_sample",
-    "provider": "github",
-    "owner": "example-org",
-    "name": "example-repo",
-    "visibility": "public",
-    "project": {
-      "project_id": "project_sample",
-      "name": "Hoisa Sample"
-    }
-  },
-  "tracker_issue": {
-    "tracker_issue_id": "github-issue-6",
-    "provider": "github",
-    "issue_number": 6,
-    "title": "Define core workflow records",
-    "url": "https://github.com/example-org/example-repo/issues/6"
-  },
-  "workflow_stage": "Implementation",
-  "status": "In Progress",
-  "review_route": "Review Both",
-  "risk": "high",
-  "quality_status": "ready",
-  "plan_ref": "docs/agent-plans/6-sample-models.md",
-  "pull_request_ref": null,
-  "blocker_summaries": [],
+  "blocker_summaries": [
+    "Awaiting no blockers."
+  ],
+  "created_at": "2026-05-25T12:00:00Z",
   "evidence_refs": [
     {
-      "evidence_id": "evidence_plan_sample",
+      "content_hash": {
+        "algorithm": "sha256",
+        "value": "abc123"
+      },
+      "evidence_id": "evidence-plan",
       "kind": "plan",
-      "uri": "docs/agent-plans/6-sample-models.md",
-      "summary": "Public-safe approved plan.",
-      "content_hash": null,
-      "source_provenance": null,
       "public_safety": "public_safe_sample",
-      "redaction_status": "not_required"
+      "redaction_status": "not_required",
+      "source_provenance": null,
+      "summary": "Public-safe approved plan.",
+      "uri": "docs/agent-plans/6-sample-models.md"
     }
   ],
-  "source_provenance": {
-    "source_system": "github",
-    "source_id": "issue-6",
-    "observed_at": "2026-05-25T12:10:00Z",
-    "source_url": "https://github.com/example-org/example-repo/issues/6",
-    "external_updated_at": null,
-    "content_hash": null,
-    "public_safety": "public_safe_sample"
-  },
+  "goal": "Implement the approved model and schema contract slice.",
+  "id": "d46a97e1c48571b2c948ff6a",
+  "item_type": "task",
+  "plan_ref": "docs/agent-plans/9-sample.md",
   "public_safety": "public_safe_sample",
-  "redaction_status": "not_required"
+  "pull_request_ref": null,
+  "quality_status": "ready",
+  "redaction_status": "not_required",
+  "review_route": "Review Both",
+  "risk": "high",
+  "schema_version": 1,
+  "source_provenance": {
+    "content_hash": null,
+    "external_updated_at": null,
+    "observed_at": "2026-05-25T12:00:00Z",
+    "public_safety": "public_safe_sample",
+    "source_id": "source-sample",
+    "source_system": "hoisa",
+    "source_url": "https://github.com/example-org/example-repo/issues/9"
+  },
+  "status": "Todo",
+  "target_repo": {
+    "id": "4cd2cc2591d8ba1227bad321",
+    "name": "example-repo",
+    "owner": "example-org",
+    "project": {
+      "id": "9eabc273742a0922d34325be",
+      "name": "Sample Project"
+    },
+    "provider": "github",
+    "visibility": "public"
+  },
+  "title": "Define public-safe workflow records",
+  "tracker_issue": {
+    "issue_number": 9,
+    "provider": "github",
+    "title": "Define public-safe workflow records",
+    "tracker_issue_id": "issue-9",
+    "url": "https://github.com/example-org/example-repo/issues/9"
+  },
+  "updated_at": "2026-05-25T12:01:00Z",
+  "workflow_stage": "Implementation"
 }

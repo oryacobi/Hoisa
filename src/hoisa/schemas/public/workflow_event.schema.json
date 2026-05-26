@@ -70,7 +70,7 @@
       "description": "Workflow event subject reference.",
       "properties": {
         "subject_id": {
-          "minLength": 1,
+          "pattern": "^[0-9a-fA-F]{24}$",
           "title": "Subject Id",
           "type": "string"
         },
@@ -324,6 +324,7 @@
     "causation_id": {
       "anyOf": [
         {
+          "pattern": "^[0-9a-fA-F]{24}$",
           "type": "string"
         },
         {
@@ -336,11 +337,6 @@
     "correlation_id": {
       "minLength": 1,
       "title": "Correlation Id",
-      "type": "string"
-    },
-    "event_id": {
-      "minLength": 1,
-      "title": "Event Id",
       "type": "string"
     },
     "event_type": {
@@ -357,6 +353,11 @@
     "happened_at": {
       "format": "date-time",
       "title": "Happened At",
+      "type": "string"
+    },
+    "id": {
+      "pattern": "^[0-9a-fA-F]{24}$",
+      "title": "Id",
       "type": "string"
     },
     "payload": {
@@ -421,7 +422,7 @@
     }
   },
   "required": [
-    "event_id",
+    "id",
     "event_type",
     "happened_at",
     "actor",

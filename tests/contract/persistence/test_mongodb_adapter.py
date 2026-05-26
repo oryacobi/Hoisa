@@ -22,6 +22,8 @@ from .provider_contract import (
     assert_round_tripped_datetimes_are_timezone_aware,
     assert_runnable_gate_and_lease_queries_are_intention_revealing,
     assert_unique_keys_are_rejected_deterministically,
+    object_id,
+    project,
 )
 
 TEST_DATABASE_PREFIX = "hoisa_test_"
@@ -47,8 +49,8 @@ def test_mongodb_collection_mapping_is_explicit() -> None:
         "tool_invocations",
         "workflow_events",
     }
-    assert specs["projects"].id_field == "project_id"
-    assert specs["workflow_events"].id_field == "event_id"
+    assert specs["projects"].model_type.__name__ == "Project"
+    assert specs["workflow_events"].model_type.__name__ == "WorkflowEvent"
 
 
 def test_mongodb_index_specs_include_unique_and_query_indexes() -> None:
@@ -86,23 +88,41 @@ def test_round_tripped_datetimes_are_timezone_aware() -> None:
     run_mongo_contract(assert_round_tripped_datetimes_are_timezone_aware)
 
 
-def assert_unique_index(spec: MongoCollectionSpec, name: str) -> None:
+def test_mongodb_uses_bson_id_without_duplicate_root_id() -> None:
+    run_mongo_contract(assert_mongodb_stores_bson_id_without_root_id)
+
+
+def assert_unique_index(spec: MongoCollectionSpec[Any], name: str) -> None:
     index = index_by_name(spec, name)
 
     assert index.unique
 
 
-def assert_query_index(spec: MongoCollectionSpec, name: str) -> None:
+def assert_query_index(spec: MongoCollectionSpec[Any], name: str) -> None:
     index = index_by_name(spec, name)
 
     assert index.keys
 
 
-def index_by_name(spec: MongoCollectionSpec, name: str) -> MongoIndexSpec:
+def index_by_name(spec: MongoCollectionSpec[Any], name: str) -> MongoIndexSpec:
     for index in spec.indexes:
         if index.name == name:
             return index
     raise AssertionError(f"Missing MongoDB index spec {name} on {spec.collection_name}")
+
+
+async def assert_mongodb_stores_bson_id_without_root_id(
+    provider: MongoPersistenceProvider,
+) -> None:
+    await provider.projects.save(project())
+
+    document = await provider.adapter._database.get_collection("projects").find_one(
+        {"_id": object_id("project-sample")}
+    )
+
+    assert document is not None
+    assert document["_id"] == object_id("project-sample")
+    assert "id" not in document
 
 
 def run_mongo_contract(

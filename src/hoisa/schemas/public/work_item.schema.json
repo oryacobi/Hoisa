@@ -103,19 +103,19 @@
       "additionalProperties": false,
       "description": "Stable reference to a Hoisa project.",
       "properties": {
+        "id": {
+          "pattern": "^[0-9a-fA-F]{24}$",
+          "title": "Id",
+          "type": "string"
+        },
         "name": {
           "minLength": 1,
           "title": "Name",
           "type": "string"
-        },
-        "project_id": {
-          "minLength": 1,
-          "title": "Project Id",
-          "type": "string"
         }
       },
       "required": [
-        "project_id",
+        "id",
         "name"
       ],
       "title": "ProjectRef",
@@ -277,6 +277,11 @@
       "additionalProperties": false,
       "description": "Generic repository reference without local paths or access details.",
       "properties": {
+        "id": {
+          "pattern": "^[0-9a-fA-F]{24}$",
+          "title": "Id",
+          "type": "string"
+        },
         "name": {
           "minLength": 1,
           "title": "Name",
@@ -293,17 +298,12 @@
         "provider": {
           "$ref": "#/$defs/RepositoryProvider"
         },
-        "target_repo_id": {
-          "minLength": 1,
-          "title": "Target Repo Id",
-          "type": "string"
-        },
         "visibility": {
           "$ref": "#/$defs/RepositoryVisibility"
         }
       },
       "required": [
-        "target_repo_id",
+        "id",
         "provider",
         "owner",
         "name",
@@ -404,6 +404,11 @@
       "title": "Goal",
       "type": "string"
     },
+    "id": {
+      "pattern": "^[0-9a-fA-F]{24}$",
+      "title": "Id",
+      "type": "string"
+    },
     "item_type": {
       "$ref": "#/$defs/WorkItemType"
     },
@@ -484,11 +489,6 @@
       "title": "Updated At",
       "type": "string"
     },
-    "work_item_id": {
-      "minLength": 1,
-      "title": "Work Item Id",
-      "type": "string"
-    },
     "workflow_stage": {
       "$ref": "#/$defs/WorkflowStage"
     }
@@ -496,7 +496,6 @@
   "required": [
     "created_at",
     "updated_at",
-    "work_item_id",
     "item_type",
     "title",
     "goal",

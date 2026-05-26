@@ -4,7 +4,7 @@ from enum import StrEnum
 
 from pydantic import Field
 
-from hoisa.domain.models import CollectionRoot, HoisaModel
+from hoisa.domain.models import BsonObjectId, CollectionRoot, HoisaModel
 from hoisa.domain.privacy import PublicSafetyClass, RedactionStatus
 from hoisa.domain.provenance import ContentHash, SourceProvenance
 
@@ -47,9 +47,8 @@ class EvidenceRequirement(HoisaModel):
 class EvidenceBundle(CollectionRoot):
     """Collection-root evidence package for review and audit."""
 
-    bundle_id: str = Field(min_length=1)
     subject_type: str = Field(min_length=1)
-    subject_id: str = Field(min_length=1)
+    subject_id: BsonObjectId
     refs: tuple[EvidenceRef, ...] = Field(min_length=1)
     source_provenance: SourceProvenance | None = None
     public_safety: PublicSafetyClass

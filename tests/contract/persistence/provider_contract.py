@@ -1,6 +1,8 @@
 from collections.abc import Awaitable
 from datetime import UTC, datetime, timedelta
+import hashlib
 
+from bson import ObjectId
 import pytest
 
 from hoisa.domain.actors import ActorRef, ActorType
@@ -13,6 +15,7 @@ from hoisa.domain.gates import (
     GateStatus,
     GateType,
 )
+from hoisa.domain.models import BsonObjectId
 from hoisa.domain.privacy import PublicSafetyClass, RedactionStatus
 from hoisa.domain.provenance import ContentHash, SourceProvenance, SourceSystem
 from hoisa.domain.runs import AgentRun, RunBudget, RunnerProfile, RunStatus
@@ -66,6 +69,12 @@ from hoisa.ports.persistence import (
 )
 
 
+def object_id(value: str | BsonObjectId) -> BsonObjectId:
+    if isinstance(value, ObjectId):
+        return value
+    return ObjectId(hashlib.sha256(value.encode("utf-8")).hexdigest()[:24])
+
+
 async def assert_repositories_save_and_fetch_current_state_records(
     provider: PersistenceProvider,
 ) -> None:
@@ -85,33 +94,33 @@ async def assert_repositories_save_and_fetch_current_state_records(
     await provider.tool_invocations.save(tool_invocation())
     await provider.workflow_events.append(event("event-1", time_at(2)))
 
-    assert await provider.projects.get("project-sample") is not None
-    assert await provider.target_repos.get("repo-sample") is not None
+    assert await provider.projects.get(object_id("project-sample")) is not None
+    assert await provider.target_repos.get(object_id("repo-sample")) is not None
     assert await provider.target_repos.get_by_provider(repo_lookup()) is not None
-    assert len(await provider.target_repos.list_by_project("project-sample")) == 1
-    assert await provider.source_connections.get("source-github") is not None
+    assert len(await provider.target_repos.list_by_project(object_id("project-sample"))) == 1
+    assert await provider.source_connections.get(object_id("source-github")) is not None
     assert len(await provider.source_observations.find_by_source(observation_query())) == 1
     assert await provider.sync_cursors.get(cursor_key()) is not None
     assert await provider.work_items.find_by_tracker_issue(provider="github", issue_number=9)
-    assert await provider.workflow_states.get("work-1") is not None
-    assert len(await provider.gates.list_by_work_item("work-1")) == 1
-    assert len(await provider.agent_runs.list_by_work_item("work-1")) == 1
+    assert await provider.workflow_states.get(object_id("work-1")) is not None
+    assert len(await provider.gates.list_by_work_item(object_id("work-1"))) == 1
+    assert len(await provider.agent_runs.list_by_work_item(object_id("work-1"))) == 1
     assert (
         len(
             await provider.evidence_bundles.list_by_subject(
                 subject_type="work_item",
-                subject_id="work-1",
+                subject_id=object_id("work-1"),
             )
         )
         == 1
     )
-    assert len(await provider.tool_connections.list_by_project("project-sample")) == 1
+    assert len(await provider.tool_connections.list_by_project(object_id("project-sample"))) == 1
     assert len(await provider.tool_policies.find_for_action(tool_query())) == 1
     assert len(await provider.action_requests.list_by_status(ActionRequestStatus.GATED)) == 1
-    assert len(await provider.action_requests.list_for_gate("gate-1")) == 1
-    assert len(await provider.tool_invocations.list_for_action_request("action-1")) == 1
+    assert len(await provider.action_requests.list_for_gate(object_id("gate-1"))) == 1
+    assert len(await provider.tool_invocations.list_for_action_request(object_id("action-1"))) == 1
     assert len(await provider.tool_invocations.list_by_tool_action(tool_query())) == 1
-    assert await provider.workflow_events.get("event-1") is not None
+    assert await provider.workflow_events.get(object_id("event-1")) is not None
 
 
 async def assert_unique_keys_are_rejected_deterministically(
@@ -174,23 +183,23 @@ async def assert_runnable_gate_and_lease_queries_are_intention_revealing(
     expired = await provider.workflow_states.list_expired_leases(LeaseLookupQuery(now=now))
     waiting = await provider.gates.list_waiting(WaitingGateQuery(tracker_issue_number=1))
 
-    assert [item.work_item_id for item in runnable] == ["eligible", "expired"]
-    assert [record.work_item_id for record in active] == ["active"]
-    assert [record.work_item_id for record in expired] == ["expired"]
-    assert [gate_record.gate_id for gate_record in waiting] == ["gate-1"]
+    assert [item.id for item in runnable] == [object_id("eligible"), object_id("expired")]
+    assert [record.work_item_id for record in active] == [object_id("active")]
+    assert [record.work_item_id for record in expired] == [object_id("expired")]
+    assert [gate_record.id for gate_record in waiting] == [object_id("gate-1")]
 
 
 async def assert_events_are_append_only_and_query_order_is_deterministic(
     provider: PersistenceProvider,
 ) -> None:
-    subject = EventSubject(subject_type="work_item", subject_id="work-1")
+    subject = EventSubject(subject_type="work_item", subject_id=object_id("work-1"))
     await provider.workflow_events.append(event("event-2", time_at(2), subject=subject))
     await provider.workflow_events.append(event("event-1", time_at(1), subject=subject))
     await provider.workflow_events.append(
         event(
             "event-3",
             time_at(3),
-            subject=EventSubject(subject_type="work_item", subject_id="work-2"),
+            subject=EventSubject(subject_type="work_item", subject_id=object_id("work-2")),
             correlation_id="other",
         )
     )
@@ -199,15 +208,18 @@ async def assert_events_are_append_only_and_query_order_is_deterministic(
     by_correlation = await provider.workflow_events.list_for_correlation("corr-1")
     recent = await provider.workflow_events.list_recent(limit=2)
 
-    assert [workflow_event.event_id for workflow_event in by_subject] == [
-        "event-1",
-        "event-2",
+    assert [workflow_event.id for workflow_event in by_subject] == [
+        object_id("event-1"),
+        object_id("event-2"),
     ]
-    assert [workflow_event.event_id for workflow_event in by_correlation] == [
-        "event-1",
-        "event-2",
+    assert [workflow_event.id for workflow_event in by_correlation] == [
+        object_id("event-1"),
+        object_id("event-2"),
     ]
-    assert [workflow_event.event_id for workflow_event in recent] == ["event-2", "event-3"]
+    assert [workflow_event.id for workflow_event in recent] == [
+        object_id("event-2"),
+        object_id("event-3"),
+    ]
 
 
 async def assert_round_tripped_datetimes_are_timezone_aware(
@@ -234,12 +246,12 @@ async def assert_round_tripped_datetimes_are_timezone_aware(
     await provider.tool_invocations.save(tool_invocation())
     await provider.workflow_events.append(event("event-1", time_at(2)))
 
-    stored_project = await require(provider.projects.get("project-sample"))
-    stored_state = await require(provider.workflow_states.get("work-1"))
-    stored_gate = await require(provider.gates.get("gate-1"))
-    stored_run = await require(provider.agent_runs.get("run-1"))
-    stored_invocation = await require(provider.tool_invocations.get("invocation-1"))
-    stored_event = await require(provider.workflow_events.get("event-1"))
+    stored_project = await require(provider.projects.get(object_id("project-sample")))
+    stored_state = await require(provider.workflow_states.get(object_id("work-1")))
+    stored_gate = await require(provider.gates.get(object_id("gate-1")))
+    stored_run = await require(provider.agent_runs.get(object_id("run-1")))
+    stored_invocation = await require(provider.tool_invocations.get(object_id("invocation-1")))
+    stored_event = await require(provider.workflow_events.get(object_id("event-1")))
 
     assert_utc_aware(stored_project.created_at)
     assert_utc_aware(stored_project.updated_at)
@@ -269,9 +281,9 @@ def assert_utc_aware(value: datetime) -> None:
     assert value.utcoffset() == timedelta(0)
 
 
-def project(project_id: str = "project-sample") -> Project:
+def project(project_id: str | BsonObjectId = "project-sample") -> Project:
     return Project(
-        project_id=project_id,
+        id=object_id(project_id),
         name="Sample Project",
         summary="Public-safe sample project.",
         created_at=time_at(),
@@ -282,9 +294,9 @@ def project(project_id: str = "project-sample") -> Project:
     )
 
 
-def target_repo(target_repo_id: str = "repo-sample") -> TargetRepo:
+def target_repo(target_repo_id: str | BsonObjectId = "repo-sample") -> TargetRepo:
     return TargetRepo(
-        target_repo_id=target_repo_id,
+        id=object_id(target_repo_id),
         provider=RepositoryProvider.GITHUB,
         owner="example-org",
         name="example-repo",
@@ -301,7 +313,7 @@ def target_repo(target_repo_id: str = "repo-sample") -> TargetRepo:
 
 def source_connection() -> SourceConnection:
     return SourceConnection(
-        source_connection_id="source-github",
+        id=object_id("source-github"),
         project=project_ref(),
         source_system=SourceSystem.GITHUB,
         display_name="Example GitHub",
@@ -315,10 +327,10 @@ def source_connection() -> SourceConnection:
     )
 
 
-def source_observation(observation_id: str = "observation-1") -> SourceObservation:
+def source_observation(observation_id: str | BsonObjectId = "observation-1") -> SourceObservation:
     return SourceObservation(
-        observation_id=observation_id,
-        source_connection_id="source-github",
+        id=object_id(observation_id),
+        source_connection_id=object_id("source-github"),
         external_id="issue-9",
         content_hash=content_hash(),
         summary="Issue metadata summary.",
@@ -332,10 +344,10 @@ def source_observation(observation_id: str = "observation-1") -> SourceObservati
     )
 
 
-def sync_cursor(cursor_id: str = "cursor-1") -> SyncCursor:
+def sync_cursor(cursor_id: str | BsonObjectId = "cursor-1") -> SyncCursor:
     return SyncCursor(
-        cursor_id=cursor_id,
-        source_connection_id="source-github",
+        id=object_id(cursor_id),
+        source_connection_id=object_id("source-github"),
         cursor_name="issues",
         cursor_value="cursor-value",
         created_at=time_at(),
@@ -346,9 +358,9 @@ def sync_cursor(cursor_id: str = "cursor-1") -> SyncCursor:
     )
 
 
-def work_item(work_item_id: str, *, issue_number: int) -> WorkItem:
+def work_item(work_item_id: str | BsonObjectId, *, issue_number: int) -> WorkItem:
     return WorkItem(
-        work_item_id=work_item_id,
+        id=object_id(work_item_id),
         item_type=WorkItemType.TASK,
         title=f"Issue {issue_number}",
         goal="Implement a public-safe sample task.",
@@ -374,13 +386,14 @@ def work_item(work_item_id: str, *, issue_number: int) -> WorkItem:
 
 
 def state(
-    work_item_id: str,
+    work_item_id: str | BsonObjectId,
     *,
     lease: Lease | None = None,
     blockers: tuple[Blocker, ...] = (),
 ) -> WorkflowStateRecord:
     return WorkflowStateRecord(
-        work_item_id=work_item_id,
+        id=object_id(work_item_id),
+        work_item_id=object_id(work_item_id),
         state=WorkflowState(
             stage=WorkflowStage.IMPLEMENTATION,
             status=QueueStatus.TODO,
@@ -397,12 +410,12 @@ def state(
     )
 
 
-def gate(gate_id: str, *, work_item_id: str) -> ApprovalGate:
+def gate(gate_id: str | BsonObjectId, *, work_item_id: str | BsonObjectId) -> ApprovalGate:
     return ApprovalGate(
-        gate_id=gate_id,
+        id=object_id(gate_id),
         gate_type=GateType.PLAN_APPROVAL,
         gate_status=GateStatus.WAITING,
-        work_item_id=work_item_id,
+        work_item_id=object_id(work_item_id),
         workflow_stage=WorkflowStage.PLAN_APPROVAL,
         risk=RiskLevel.HIGH,
         recommendation=GateRecommendation.APPROVE,
@@ -419,10 +432,10 @@ def gate(gate_id: str, *, work_item_id: str) -> ApprovalGate:
     )
 
 
-def agent_run(run_id: str, *, work_item_id: str) -> AgentRun:
+def agent_run(run_id: str | BsonObjectId, *, work_item_id: str | BsonObjectId) -> AgentRun:
     return AgentRun(
-        run_id=run_id,
-        work_item_id=work_item_id,
+        id=object_id(run_id),
+        work_item_id=object_id(work_item_id),
         workflow_stage=WorkflowStage.IMPLEMENTATION,
         runner_profile=RunnerProfile(
             runner_type="codex",
@@ -441,11 +454,13 @@ def agent_run(run_id: str, *, work_item_id: str) -> AgentRun:
     )
 
 
-def evidence_bundle(bundle_id: str, *, subject_id: str) -> EvidenceBundle:
+def evidence_bundle(
+    bundle_id: str | BsonObjectId, *, subject_id: str | BsonObjectId
+) -> EvidenceBundle:
     return EvidenceBundle(
-        bundle_id=bundle_id,
+        id=object_id(bundle_id),
         subject_type="work_item",
-        subject_id=subject_id,
+        subject_id=object_id(subject_id),
         refs=(evidence_ref(),),
         created_at=time_at(),
         updated_at=time_at(),
@@ -457,7 +472,7 @@ def evidence_bundle(bundle_id: str, *, subject_id: str) -> EvidenceBundle:
 
 def tool_connection() -> ToolConnection:
     return ToolConnection(
-        tool_connection_id="tool-github",
+        id=object_id("tool-github"),
         project=project_ref(),
         tool_type="github",
         display_name="GitHub",
@@ -470,9 +485,9 @@ def tool_connection() -> ToolConnection:
     )
 
 
-def tool_policy(tool_policy_id: str = "policy-1") -> ToolPolicy:
+def tool_policy(tool_policy_id: str | BsonObjectId = "policy-1") -> ToolPolicy:
     return ToolPolicy(
-        tool_policy_id=tool_policy_id,
+        id=object_id(tool_policy_id),
         project=project_ref(),
         tool_type="github",
         action_type="create_pull_request",
@@ -488,13 +503,13 @@ def tool_policy(tool_policy_id: str = "policy-1") -> ToolPolicy:
 
 def action_request() -> ActionRequest:
     return ActionRequest(
-        action_request_id="action-1",
+        id=object_id("action-1"),
         project=project_ref(),
         tool_type="github",
         action_type="create_pull_request",
         status=ActionRequestStatus.GATED,
         summary="Request PR creation.",
-        required_gate_id="gate-1",
+        required_gate_id=object_id("gate-1"),
         created_at=time_at(),
         updated_at=time_at(),
         source_provenance=provenance(),
@@ -505,13 +520,13 @@ def action_request() -> ActionRequest:
 
 def tool_invocation() -> ToolInvocation:
     return ToolInvocation(
-        tool_invocation_id="invocation-1",
+        id=object_id("invocation-1"),
         tool_type="github",
         action_type="create_pull_request",
         status=ToolInvocationStatus.SKIPPED,
         happened_at=time_at(),
         summary="Skipped until approval.",
-        action_request_id="action-1",
+        action_request_id=object_id("action-1"),
         created_at=time_at(),
         updated_at=time_at(),
         source_provenance=provenance(),
@@ -521,18 +536,18 @@ def tool_invocation() -> ToolInvocation:
 
 
 def event(
-    event_id: str,
+    event_id: str | BsonObjectId,
     happened_at: datetime,
     *,
     subject: EventSubject | None = None,
     correlation_id: str = "corr-1",
 ) -> WorkflowEvent:
     return WorkflowEvent(
-        event_id=event_id,
+        id=object_id(event_id),
         event_type=WorkflowEventType.WORK_ITEM_SELECTED,
         happened_at=happened_at,
         actor=ActorRef(actor_type=ActorType.AGENT, actor_id="codex"),
-        subject=subject or EventSubject(subject_type="work_item", subject_id="work-1"),
+        subject=subject or EventSubject(subject_type="work_item", subject_id=object_id("work-1")),
         correlation_id=correlation_id,
         workflow_stage=WorkflowStage.IMPLEMENTATION,
         risk=RiskLevel.HIGH,
@@ -549,12 +564,12 @@ def time_at(minutes: int = 0) -> datetime:
 
 
 def project_ref() -> ProjectRef:
-    return ProjectRef(project_id="project-sample", name="Sample Project")
+    return ProjectRef(id=object_id("project-sample"), name="Sample Project")
 
 
 def target_repo_ref() -> TargetRepoRef:
     return TargetRepoRef(
-        target_repo_id="repo-sample",
+        id=object_id("repo-sample"),
         provider=RepositoryProvider.GITHUB,
         owner="example-org",
         name="example-repo",
@@ -598,19 +613,19 @@ def evidence_ref() -> EvidenceRef:
 
 def observation_query() -> SourceObservationQuery:
     return SourceObservationQuery(
-        source_connection_id="source-github",
+        source_connection_id=object_id("source-github"),
         external_id="issue-9",
         content_hash_value="abc123",
     )
 
 
 def cursor_key() -> SyncCursorKey:
-    return SyncCursorKey(source_connection_id="source-github", cursor_name="issues")
+    return SyncCursorKey(source_connection_id=object_id("source-github"), cursor_name="issues")
 
 
 def tool_query() -> ToolActionQuery:
     return ToolActionQuery(
-        project_id="project-sample",
+        project_id=object_id("project-sample"),
         tool_type="github",
         action_type="create_pull_request",
     )

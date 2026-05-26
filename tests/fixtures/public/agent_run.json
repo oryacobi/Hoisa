@@ -1,65 +1,61 @@
 {
-  "run_id": "run_sample_models",
-  "created_at": "2026-05-25T12:30:00Z",
-  "updated_at": "2026-05-25T12:45:00Z",
-  "schema_version": 1,
-  "work_item_id": "work_item_sample_models",
-  "workflow_stage": "Implementation",
-  "runner_profile": {
-    "runner_type": "codex",
-    "profile_name": "local-sandbox",
-    "sandbox": "workspace",
-    "network_access": false
+  "agent": {
+    "actor_id": "codex",
+    "actor_type": "agent",
+    "display_name": null
   },
   "budget": {
-    "max_minutes": 45,
-    "max_attempts": 1
+    "max_attempts": 1,
+    "max_minutes": 30
   },
-  "agent": {
-    "actor_type": "agent",
-    "actor_id": "codex-sample",
-    "display_name": "Codex Sample"
-  },
-  "status": "completed",
-  "started_at": "2026-05-25T12:30:00Z",
-  "completed_at": "2026-05-25T12:44:00Z",
-  "command_summaries": [
-    {
-      "command_label": "unit-tests",
-      "exit_code": 0,
-      "summary": "Focused public schema tests passed.",
-      "evidence_refs": []
-    }
-  ],
   "check_summaries": [
     {
-      "name": "pytest",
+      "evidence_refs": [],
+      "name": "unit schemas",
       "status": "passed",
-      "summary": "All focused tests passed.",
-      "evidence_refs": []
+      "summary": "Focused public schema tests passed."
     }
   ],
+  "command_summaries": [],
+  "completed_at": "2026-05-25T12:20:00Z",
+  "created_at": "2026-05-25T12:00:00Z",
   "evidence_refs": [
     {
-      "evidence_id": "evidence_checks_sample",
-      "kind": "check_run",
-      "uri": "checks/sample-pytest",
-      "summary": "Public-safe check summary.",
-      "content_hash": null,
-      "source_provenance": null,
+      "content_hash": {
+        "algorithm": "sha256",
+        "value": "abc123"
+      },
+      "evidence_id": "evidence-plan",
+      "kind": "plan",
       "public_safety": "public_safe_sample",
-      "redaction_status": "summary_only"
+      "redaction_status": "not_required",
+      "source_provenance": null,
+      "summary": "Public-safe approved plan.",
+      "uri": "docs/agent-plans/6-sample-models.md"
     }
   ],
-  "source_provenance": {
-    "source_system": "runner",
-    "source_id": "run-sample-models",
-    "observed_at": "2026-05-25T12:45:00Z",
-    "source_url": null,
-    "external_updated_at": null,
-    "content_hash": null,
-    "public_safety": "public_safe_sample"
-  },
+  "id": "bc3f17288b8556e34db1e3d6",
   "public_safety": "public_safe_sample",
-  "redaction_status": "summary_only"
+  "redaction_status": "not_required",
+  "runner_profile": {
+    "network_access": false,
+    "profile_name": "local",
+    "runner_type": "codex",
+    "sandbox": "workspace"
+  },
+  "schema_version": 1,
+  "source_provenance": {
+    "content_hash": null,
+    "external_updated_at": null,
+    "observed_at": "2026-05-25T12:00:00Z",
+    "public_safety": "public_safe_sample",
+    "source_id": "source-sample",
+    "source_system": "hoisa",
+    "source_url": "https://github.com/example-org/example-repo/issues/9"
+  },
+  "started_at": "2026-05-25T12:00:00Z",
+  "status": "completed",
+  "updated_at": "2026-05-25T12:20:00Z",
+  "work_item_id": "d46a97e1c48571b2c948ff6a",
+  "workflow_stage": "Implementation"
 }

@@ -204,14 +204,14 @@
   "additionalProperties": false,
   "description": "Collection-root evidence package for review and audit.",
   "properties": {
-    "bundle_id": {
-      "minLength": 1,
-      "title": "Bundle Id",
-      "type": "string"
-    },
     "created_at": {
       "format": "date-time",
       "title": "Created At",
+      "type": "string"
+    },
+    "id": {
+      "pattern": "^[0-9a-fA-F]{24}$",
+      "title": "Id",
       "type": "string"
     },
     "public_safety": {
@@ -246,7 +246,7 @@
       "default": null
     },
     "subject_id": {
-      "minLength": 1,
+      "pattern": "^[0-9a-fA-F]{24}$",
       "title": "Subject Id",
       "type": "string"
     },
@@ -264,7 +264,6 @@
   "required": [
     "created_at",
     "updated_at",
-    "bundle_id",
     "subject_type",
     "subject_id",
     "refs",

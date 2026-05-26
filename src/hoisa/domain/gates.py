@@ -6,7 +6,7 @@ from pydantic import Field
 
 from hoisa.domain.actors import ActorRef
 from hoisa.domain.evidence import EvidenceRef
-from hoisa.domain.models import CollectionRoot, HoisaModel, UtcDatetime
+from hoisa.domain.models import BsonObjectId, CollectionRoot, HoisaModel, UtcDatetime
 from hoisa.domain.privacy import PublicSafetyClass, RedactionStatus
 from hoisa.domain.provenance import SourceProvenance
 from hoisa.domain.workflow_state import RiskLevel, WorkflowStage
@@ -63,10 +63,9 @@ class GateDecision(HoisaModel):
 class ApprovalGate(CollectionRoot):
     """Structured human approval object with exact authority boundaries."""
 
-    gate_id: str = Field(min_length=1)
     gate_type: GateType
     gate_status: GateStatus
-    work_item_id: str = Field(min_length=1)
+    work_item_id: BsonObjectId
     workflow_stage: WorkflowStage
     risk: RiskLevel
     recommendation: GateRecommendation

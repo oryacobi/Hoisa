@@ -20,7 +20,6 @@ class DirectiveConstraints(HoisaModel):
 class Directive(CollectionRoot):
     """Captured human direction before it becomes work items."""
 
-    directive_id: str = Field(min_length=1)
     project: ProjectRef
     target_repo: TargetRepoRef | None = None
     summary: str = Field(min_length=1)
