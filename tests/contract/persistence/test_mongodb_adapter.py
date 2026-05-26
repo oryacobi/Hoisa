@@ -6,7 +6,7 @@ from typing import Any, cast
 import uuid
 
 from pymongo import AsyncMongoClient
-from pymongo.errors import PyMongoError
+from pymongo.errors import ServerSelectionTimeoutError
 import pytest
 
 from hoisa.adapters.persistence.mongodb import (
@@ -15,6 +15,7 @@ from hoisa.adapters.persistence.mongodb import (
     MongoIndexSpec,
     MongoPersistenceProvider,
 )
+from hoisa.ports.persistence import PersistenceError
 
 from .provider_contract import (
     assert_events_are_append_only_and_query_order_is_deterministic,
@@ -51,6 +52,12 @@ def test_mongodb_collection_mapping_is_explicit() -> None:
     }
     assert specs["projects"].model_type.__name__ == "Project"
     assert specs["workflow_events"].model_type.__name__ == "WorkflowEvent"
+
+
+def test_mongodb_package_exports_provider() -> None:
+    from hoisa.adapters.persistence import mongodb
+
+    assert mongodb.MongoPersistenceProvider is MongoPersistenceProvider
 
 
 def test_mongodb_index_specs_include_unique_and_query_indexes() -> None:
@@ -114,7 +121,7 @@ def index_by_name(spec: MongoCollectionSpec[Any], name: str) -> MongoIndexSpec:
 async def assert_mongodb_stores_bson_id_without_root_id(
     provider: MongoPersistenceProvider,
 ) -> None:
-    await provider.projects.save(project())
+    await provider.catalog.save_project(project())
 
     document = await provider.adapter._database.get_collection("projects").find_one(
         {"_id": object_id("project-sample")}
@@ -140,14 +147,19 @@ async def with_mongo_provider(
         serverSelectionTimeoutMS=2000,
     )
     provider = MongoPersistenceProvider(client, database_name=database_name)
+    indexes_ready = False
     try:
         try:
             await provider.ensure_indexes()
-        except PyMongoError:
-            pytest.skip("MongoDB test service is unavailable.")
+        except PersistenceError as exc:
+            if isinstance(exc.__cause__, ServerSelectionTimeoutError):
+                pytest.skip("MongoDB test service is unavailable.")
+            raise
+        indexes_ready = True
         await assertion(provider)
     finally:
-        await maybe_await(client.drop_database(database_name))
+        if indexes_ready:
+            await maybe_await(client.drop_database(database_name))
         await provider.close()
 
 

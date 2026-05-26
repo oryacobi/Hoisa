@@ -138,7 +138,7 @@ def test_source_records_reject_missing_required_identity() -> None:
 
 def test_workflow_state_and_tool_control_records_do_not_authorize_actions() -> None:
     state = WorkflowStateRecord(
-        id=_id("state-work-1"),
+        id=_id("work-1"),
         work_item_id=_id("work-1"),
         state=WorkflowState(
             stage=WorkflowStage.IMPLEMENTATION,
@@ -218,6 +218,25 @@ def test_workflow_state_and_tool_control_records_do_not_authorize_actions() -> N
     assert policy.decision == ToolPolicyDecision.REQUIRE_GATE
     assert request.status == ActionRequestStatus.GATED
     assert invocation.status == ToolInvocationStatus.SKIPPED
+
+
+def test_workflow_state_record_id_must_match_work_item_id() -> None:
+    with pytest.raises(ValidationError, match="id must match work_item_id"):
+        WorkflowStateRecord(
+            id=_id("state-work-1"),
+            work_item_id=_id("work-1"),
+            state=WorkflowState(
+                stage=WorkflowStage.IMPLEMENTATION,
+                status=QueueStatus.IN_PROGRESS,
+                review_route=ReviewRoute.REVIEW_BOTH,
+                risk=RiskLevel.HIGH,
+            ),
+            created_at=_time(),
+            updated_at=_time(),
+            source_provenance=_provenance(),
+            public_safety=PublicSafetyClass.PUBLIC_SAFE_SAMPLE,
+            redaction_status=RedactionStatus.NOT_REQUIRED,
+        )
 
 
 def _time(minutes: int = 0) -> datetime:

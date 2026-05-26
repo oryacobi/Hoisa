@@ -78,110 +78,112 @@ def object_id(value: str | BsonObjectId) -> BsonObjectId:
 async def assert_repositories_save_and_fetch_current_state_records(
     provider: PersistenceProvider,
 ) -> None:
-    await provider.projects.save(project())
-    await provider.target_repos.save(target_repo())
-    await provider.source_connections.save(source_connection())
-    await provider.source_observations.save(source_observation())
-    await provider.sync_cursors.save(sync_cursor())
-    await provider.work_items.save(work_item("work-1", issue_number=9))
-    await provider.workflow_states.save(state("work-1"))
-    await provider.gates.save(gate("gate-1", work_item_id="work-1"))
-    await provider.agent_runs.save(agent_run("run-1", work_item_id="work-1"))
-    await provider.evidence_bundles.save(evidence_bundle("bundle-1", subject_id="work-1"))
-    await provider.tool_connections.save(tool_connection())
-    await provider.tool_policies.save(tool_policy())
-    await provider.action_requests.save(action_request())
-    await provider.tool_invocations.save(tool_invocation())
-    await provider.workflow_events.append(event("event-1", time_at(2)))
+    await provider.catalog.save_project(project())
+    await provider.catalog.save_target_repo(target_repo())
+    await provider.sources.save_connection(source_connection())
+    await provider.sources.save_observation(source_observation())
+    await provider.sources.save_cursor(sync_cursor())
+    await provider.workflow.save_work_item(work_item("work-1", issue_number=9))
+    await provider.workflow.save_state(state("work-1"))
+    await provider.workflow.save_gate(gate("gate-1", work_item_id="work-1"))
+    await provider.workflow.save_agent_run(agent_run("run-1", work_item_id="work-1"))
+    await provider.evidence.save_bundle(evidence_bundle("bundle-1", subject_id="work-1"))
+    await provider.tools.save_connection(tool_connection())
+    await provider.tools.save_policy(tool_policy())
+    await provider.tools.save_action_request(action_request())
+    await provider.tools.save_invocation(tool_invocation())
+    await provider.events.append(event("event-1", time_at(2)))
 
-    assert await provider.projects.get(object_id("project-sample")) is not None
-    assert await provider.target_repos.get(object_id("repo-sample")) is not None
-    assert await provider.target_repos.get_by_provider(repo_lookup()) is not None
-    assert len(await provider.target_repos.list_by_project(object_id("project-sample"))) == 1
-    assert await provider.source_connections.get(object_id("source-github")) is not None
-    assert len(await provider.source_observations.find_by_source(observation_query())) == 1
-    assert await provider.sync_cursors.get(cursor_key()) is not None
-    assert await provider.work_items.find_by_tracker_issue(provider="github", issue_number=9)
-    assert await provider.workflow_states.get(object_id("work-1")) is not None
-    assert len(await provider.gates.list_by_work_item(object_id("work-1"))) == 1
-    assert len(await provider.agent_runs.list_by_work_item(object_id("work-1"))) == 1
+    assert await provider.catalog.get_project(object_id("project-sample")) is not None
+    assert await provider.catalog.get_target_repo(object_id("repo-sample")) is not None
+    assert await provider.catalog.get_target_repo_by_provider(repo_lookup()) is not None
+    assert len(await provider.catalog.list_target_repos(object_id("project-sample"))) == 1
+    assert await provider.sources.get_connection(object_id("source-github")) is not None
+    assert len(await provider.sources.find_observations(observation_query())) == 1
+    assert await provider.sources.get_cursor(cursor_key()) is not None
+    assert await provider.workflow.find_work_item_by_tracker_issue(
+        provider="github", issue_number=9
+    )
+    assert await provider.workflow.get_state(object_id("work-1")) is not None
+    assert len(await provider.workflow.list_gates(object_id("work-1"))) == 1
+    assert len(await provider.workflow.list_agent_runs(object_id("work-1"))) == 1
     assert (
         len(
-            await provider.evidence_bundles.list_by_subject(
+            await provider.evidence.list_bundles(
                 subject_type="work_item",
                 subject_id=object_id("work-1"),
             )
         )
         == 1
     )
-    assert len(await provider.tool_connections.list_by_project(object_id("project-sample"))) == 1
-    assert len(await provider.tool_policies.find_for_action(tool_query())) == 1
-    assert len(await provider.action_requests.list_by_status(ActionRequestStatus.GATED)) == 1
-    assert len(await provider.action_requests.list_for_gate(object_id("gate-1"))) == 1
-    assert len(await provider.tool_invocations.list_for_action_request(object_id("action-1"))) == 1
-    assert len(await provider.tool_invocations.list_by_tool_action(tool_query())) == 1
-    assert await provider.workflow_events.get(object_id("event-1")) is not None
+    assert len(await provider.tools.list_connections(object_id("project-sample"))) == 1
+    assert len(await provider.tools.find_policies(tool_query())) == 1
+    assert len(await provider.tools.list_action_requests_by_status(ActionRequestStatus.GATED)) == 1
+    assert len(await provider.tools.list_action_requests_for_gate(object_id("gate-1"))) == 1
+    assert len(await provider.tools.list_invocations_for_action_request(object_id("action-1"))) == 1
+    assert len(await provider.tools.list_invocations_by_tool_action(tool_query())) == 1
+    assert await provider.events.get(object_id("event-1")) is not None
 
 
 async def assert_unique_keys_are_rejected_deterministically(
     provider: PersistenceProvider,
 ) -> None:
-    await provider.target_repos.save(target_repo("repo-1"))
-    await provider.source_observations.save(source_observation("observation-1"))
-    await provider.sync_cursors.save(sync_cursor("cursor-1"))
-    await provider.work_items.save(work_item("work-1", issue_number=9))
-    await provider.tool_policies.save(tool_policy("policy-1"))
-    await provider.workflow_events.append(event("event-1", time_at()))
+    await provider.catalog.save_target_repo(target_repo("repo-1"))
+    await provider.sources.save_observation(source_observation("observation-1"))
+    await provider.sources.save_cursor(sync_cursor("cursor-1"))
+    await provider.workflow.save_work_item(work_item("work-1", issue_number=9))
+    await provider.tools.save_policy(tool_policy("policy-1"))
+    await provider.events.append(event("event-1", time_at()))
 
     with pytest.raises(DuplicateRecordError, match="target repository"):
-        await provider.target_repos.save(target_repo("repo-2"))
+        await provider.catalog.save_target_repo(target_repo("repo-2"))
     with pytest.raises(DuplicateRecordError, match="source observation"):
-        await provider.source_observations.save(source_observation("observation-2"))
+        await provider.sources.save_observation(source_observation("observation-2"))
     with pytest.raises(DuplicateRecordError, match="sync cursor"):
-        await provider.sync_cursors.save(sync_cursor("cursor-2"))
+        await provider.sources.save_cursor(sync_cursor("cursor-2"))
     with pytest.raises(DuplicateRecordError, match="tracker issue"):
-        await provider.work_items.save(work_item("work-2", issue_number=9))
+        await provider.workflow.save_work_item(work_item("work-2", issue_number=9))
     with pytest.raises(DuplicateRecordError, match="tool policy"):
-        await provider.tool_policies.save(tool_policy("policy-2"))
+        await provider.tools.save_policy(tool_policy("policy-2"))
     with pytest.raises(DuplicateRecordError, match="Workflow event"):
-        await provider.workflow_events.append(event("event-1", time_at(1)))
+        await provider.events.append(event("event-1", time_at(1)))
 
 
 async def assert_runnable_gate_and_lease_queries_are_intention_revealing(
     provider: PersistenceProvider,
 ) -> None:
     now = time_at(10)
-    await provider.work_items.save(work_item("eligible", issue_number=1))
-    await provider.work_items.save(work_item("active", issue_number=2))
-    await provider.work_items.save(work_item("expired", issue_number=3))
-    await provider.work_items.save(work_item("blocked", issue_number=4))
-    await provider.workflow_states.save(state("eligible"))
-    await provider.workflow_states.save(
+    await provider.workflow.save_work_item(work_item("eligible", issue_number=1))
+    await provider.workflow.save_work_item(work_item("active", issue_number=2))
+    await provider.workflow.save_work_item(work_item("expired", issue_number=3))
+    await provider.workflow.save_work_item(work_item("blocked", issue_number=4))
+    await provider.workflow.save_state(state("eligible"))
+    await provider.workflow.save_state(
         state(
             "active",
             lease=Lease(worker_id="Codex-1", claimed_at=time_at(), expires_at=time_at(20)),
         )
     )
-    await provider.workflow_states.save(
+    await provider.workflow.save_state(
         state(
             "expired",
             lease=Lease(worker_id="Codex-2", claimed_at=time_at(), expires_at=time_at(5)),
         )
     )
-    await provider.workflow_states.save(
+    await provider.workflow.save_state(
         state(
             "blocked",
             blockers=(Blocker(blocker_id="blocker-1", summary="Waiting.", created_at=time_at()),),
         )
     )
-    await provider.gates.save(gate("gate-1", work_item_id="eligible"))
+    await provider.workflow.save_gate(gate("gate-1", work_item_id="eligible"))
 
-    runnable = await provider.work_items.find_runnable(
+    runnable = await provider.workflow.find_runnable_work(
         RunnableWorkQuery(workflow_stage=WorkflowStage.IMPLEMENTATION, now=now)
     )
-    active = await provider.workflow_states.list_active_leases(LeaseLookupQuery(now=now))
-    expired = await provider.workflow_states.list_expired_leases(LeaseLookupQuery(now=now))
-    waiting = await provider.gates.list_waiting(WaitingGateQuery(tracker_issue_number=1))
+    active = await provider.workflow.list_active_leases(LeaseLookupQuery(now=now))
+    expired = await provider.workflow.list_expired_leases(LeaseLookupQuery(now=now))
+    waiting = await provider.workflow.list_waiting_gates(WaitingGateQuery(tracker_issue_number=1))
 
     assert [item.id for item in runnable] == [object_id("eligible"), object_id("expired")]
     assert [record.work_item_id for record in active] == [object_id("active")]
@@ -193,9 +195,9 @@ async def assert_events_are_append_only_and_query_order_is_deterministic(
     provider: PersistenceProvider,
 ) -> None:
     subject = EventSubject(subject_type="work_item", subject_id=object_id("work-1"))
-    await provider.workflow_events.append(event("event-2", time_at(2), subject=subject))
-    await provider.workflow_events.append(event("event-1", time_at(1), subject=subject))
-    await provider.workflow_events.append(
+    await provider.events.append(event("event-2", time_at(2), subject=subject))
+    await provider.events.append(event("event-1", time_at(1), subject=subject))
+    await provider.events.append(
         event(
             "event-3",
             time_at(3),
@@ -204,9 +206,9 @@ async def assert_events_are_append_only_and_query_order_is_deterministic(
         )
     )
 
-    by_subject = await provider.workflow_events.list_for_subject(subject)
-    by_correlation = await provider.workflow_events.list_for_correlation("corr-1")
-    recent = await provider.workflow_events.list_recent(limit=2)
+    by_subject = await provider.events.list_for_subject(subject)
+    by_correlation = await provider.events.list_for_correlation("corr-1")
+    recent = await provider.events.list_recent(limit=2)
 
     assert [workflow_event.id for workflow_event in by_subject] == [
         object_id("event-1"),
@@ -225,9 +227,9 @@ async def assert_events_are_append_only_and_query_order_is_deterministic(
 async def assert_round_tripped_datetimes_are_timezone_aware(
     provider: PersistenceProvider,
 ) -> None:
-    await provider.projects.save(project())
-    await provider.work_items.save(work_item("work-1", issue_number=9))
-    await provider.workflow_states.save(
+    await provider.catalog.save_project(project())
+    await provider.workflow.save_work_item(work_item("work-1", issue_number=9))
+    await provider.workflow.save_state(
         state(
             "work-1",
             lease=Lease(worker_id="Codex-1", claimed_at=time_at(), expires_at=time_at(20)),
@@ -241,17 +243,17 @@ async def assert_round_tripped_datetimes_are_timezone_aware(
             ),
         )
     )
-    await provider.gates.save(gate("gate-1", work_item_id="work-1"))
-    await provider.agent_runs.save(agent_run("run-1", work_item_id="work-1"))
-    await provider.tool_invocations.save(tool_invocation())
-    await provider.workflow_events.append(event("event-1", time_at(2)))
+    await provider.workflow.save_gate(gate("gate-1", work_item_id="work-1"))
+    await provider.workflow.save_agent_run(agent_run("run-1", work_item_id="work-1"))
+    await provider.tools.save_invocation(tool_invocation())
+    await provider.events.append(event("event-1", time_at(2)))
 
-    stored_project = await require(provider.projects.get(object_id("project-sample")))
-    stored_state = await require(provider.workflow_states.get(object_id("work-1")))
-    stored_gate = await require(provider.gates.get(object_id("gate-1")))
-    stored_run = await require(provider.agent_runs.get(object_id("run-1")))
-    stored_invocation = await require(provider.tool_invocations.get(object_id("invocation-1")))
-    stored_event = await require(provider.workflow_events.get(object_id("event-1")))
+    stored_project = await require(provider.catalog.get_project(object_id("project-sample")))
+    stored_state = await require(provider.workflow.get_state(object_id("work-1")))
+    stored_gate = await require(provider.workflow.get_gate(object_id("gate-1")))
+    stored_run = await require(provider.workflow.get_agent_run(object_id("run-1")))
+    stored_invocation = await require(provider.tools.get_invocation(object_id("invocation-1")))
+    stored_event = await require(provider.events.get(object_id("event-1")))
 
     assert_utc_aware(stored_project.created_at)
     assert_utc_aware(stored_project.updated_at)

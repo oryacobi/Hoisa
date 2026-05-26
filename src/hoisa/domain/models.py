@@ -3,6 +3,7 @@
 from datetime import UTC, datetime
 from typing import Annotated, Any
 
+from bson import ObjectId
 from pydantic import (
     AfterValidator,
     BaseModel,
@@ -26,9 +27,7 @@ def normalize_utc_datetime(value: datetime) -> datetime:
 UtcDatetime = Annotated[datetime, AfterValidator(normalize_utc_datetime)]
 
 
-def new_object_id() -> object:
-    from bson import ObjectId
-
+def new_object_id() -> ObjectId:
     return ObjectId()
 
 
@@ -39,18 +38,14 @@ class _BsonObjectIdPydanticAnnotation:
         _source_type: Any,
         _handler: GetCoreSchemaHandler,
     ) -> core_schema.CoreSchema:
-        def validate_object_id(value: object) -> object:
-            from bson import ObjectId
-
+        def validate_object_id(value: object) -> ObjectId:
             if isinstance(value, ObjectId):
                 return value
             if isinstance(value, str) and ObjectId.is_valid(value):
                 return ObjectId(value)
             raise ValueError("Invalid ObjectId.")
 
-        def validate_from_str(value: str) -> object:
-            from bson import ObjectId
-
+        def validate_from_str(value: str) -> ObjectId:
             if not ObjectId.is_valid(value):
                 raise ValueError("Invalid ObjectId.")
             return ObjectId(value)
@@ -84,7 +79,7 @@ class _BsonObjectIdPydanticAnnotation:
         }
 
 
-BsonObjectId = Annotated[Any, _BsonObjectIdPydanticAnnotation]
+BsonObjectId = Annotated[ObjectId, _BsonObjectIdPydanticAnnotation]
 
 
 class HoisaModel(BaseModel):

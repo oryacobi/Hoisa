@@ -1,4 +1,4 @@
-"""Persistence ports for Hoisa current-state repositories and event history."""
+"""Persistence ports for Hoisa durable workflow state."""
 
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -118,122 +118,108 @@ class EventQuery:
     limit: int | None = None
 
 
-class ProjectRepository(Protocol):
-    """Repository for Hoisa project records."""
+class CatalogGateway(Protocol):
+    """Project and target repository persistence."""
 
-    async def save(self, project: Project) -> None:
+    async def save_project(self, project: Project) -> None:
         """Save a project snapshot."""
         ...
 
-    async def get(self, project_id: BsonObjectId) -> Project | None:
+    async def get_project(self, project_id: BsonObjectId) -> Project | None:
         """Return a project by stable ID."""
         ...
 
-    async def list_all(self) -> Sequence[Project]:
+    async def list_projects(self) -> Sequence[Project]:
         """Return all projects in deterministic order."""
         ...
 
-
-class TargetRepoRepository(Protocol):
-    """Repository for target repository records."""
-
-    async def save(self, target_repo: TargetRepo) -> None:
+    async def save_target_repo(self, target_repo: TargetRepo) -> None:
         """Save a target repository snapshot."""
         ...
 
-    async def get(self, target_repo_id: BsonObjectId) -> TargetRepo | None:
+    async def get_target_repo(self, target_repo_id: BsonObjectId) -> TargetRepo | None:
         """Return a target repository by stable ID."""
         ...
 
-    async def get_by_provider(self, lookup: RepoLookup) -> TargetRepo | None:
+    async def get_target_repo_by_provider(self, lookup: RepoLookup) -> TargetRepo | None:
         """Return a target repository by provider, owner, and name."""
         ...
 
-    async def list_by_project(self, project_id: BsonObjectId) -> Sequence[TargetRepo]:
+    async def list_target_repos(self, project_id: BsonObjectId) -> Sequence[TargetRepo]:
         """Return repositories for a Hoisa project."""
         ...
 
 
-class SourceConnectionRepository(Protocol):
-    """Repository for external source connections."""
+class SourceGateway(Protocol):
+    """External source connection, observation, and cursor persistence."""
 
-    async def save(self, connection: SourceConnection) -> None:
+    async def save_connection(self, connection: SourceConnection) -> None:
         """Save a source connection snapshot."""
         ...
 
-    async def get(self, source_connection_id: BsonObjectId) -> SourceConnection | None:
+    async def get_connection(self, source_connection_id: BsonObjectId) -> SourceConnection | None:
         """Return a source connection by stable ID."""
         ...
 
-    async def list_by_project(self, project_id: BsonObjectId) -> Sequence[SourceConnection]:
+    async def list_connections(self, project_id: BsonObjectId) -> Sequence[SourceConnection]:
         """Return source connections for a project."""
         ...
 
-
-class SourceObservationRepository(Protocol):
-    """Repository for public-safe source observations."""
-
-    async def save(self, observation: SourceObservation) -> None:
+    async def save_observation(self, observation: SourceObservation) -> None:
         """Save a source observation snapshot."""
         ...
 
-    async def get(self, observation_id: BsonObjectId) -> SourceObservation | None:
+    async def get_observation(self, observation_id: BsonObjectId) -> SourceObservation | None:
         """Return a source observation by stable ID."""
         ...
 
-    async def find_by_source(self, query: SourceObservationQuery) -> Sequence[SourceObservation]:
+    async def find_observations(self, query: SourceObservationQuery) -> Sequence[SourceObservation]:
         """Return observations for a source query."""
         ...
 
-
-class SyncCursorRepository(Protocol):
-    """Repository for source sync cursors."""
-
-    async def save(self, cursor: SyncCursor) -> None:
+    async def save_cursor(self, cursor: SyncCursor) -> None:
         """Save a cursor snapshot."""
         ...
 
-    async def get(self, key: SyncCursorKey) -> SyncCursor | None:
+    async def get_cursor(self, key: SyncCursorKey) -> SyncCursor | None:
         """Return a cursor by source connection and cursor name."""
         ...
 
-    async def list_by_source(self, source_connection_id: BsonObjectId) -> Sequence[SyncCursor]:
+    async def list_cursors(self, source_connection_id: BsonObjectId) -> Sequence[SyncCursor]:
         """Return all cursors for a source connection."""
         ...
 
 
-class WorkItemRepository(Protocol):
-    """Repository for canonical Hoisa work items."""
+class WorkflowGateway(Protocol):
+    """Work item, workflow state, gate, and run persistence."""
 
-    async def save(self, work_item: WorkItem) -> None:
+    async def save_work_item(self, work_item: WorkItem) -> None:
         """Save a work item snapshot."""
         ...
 
-    async def get(self, work_item_id: BsonObjectId) -> WorkItem | None:
+    async def get_work_item(self, work_item_id: BsonObjectId) -> WorkItem | None:
         """Return a work item by stable ID."""
         ...
 
-    async def find_by_tracker_issue(self, *, provider: str, issue_number: int) -> WorkItem | None:
+    async def find_work_item_by_tracker_issue(
+        self, *, provider: str, issue_number: int
+    ) -> WorkItem | None:
         """Return a work item by tracker issue identity."""
         ...
 
-    async def find_runnable(self, query: RunnableWorkQuery) -> Sequence[WorkItem]:
+    async def find_runnable_work(self, query: RunnableWorkQuery) -> Sequence[WorkItem]:
         """Return runnable work based on Hoisa-owned state."""
         ...
 
-
-class WorkflowStateRepository(Protocol):
-    """Repository for workflow lifecycle and lease state."""
-
-    async def save(self, state_record: WorkflowStateRecord) -> None:
+    async def save_state(self, state_record: WorkflowStateRecord) -> None:
         """Save a workflow state snapshot."""
         ...
 
-    async def get(self, work_item_id: BsonObjectId) -> WorkflowStateRecord | None:
+    async def get_state(self, work_item_id: BsonObjectId) -> WorkflowStateRecord | None:
         """Return workflow state by work item."""
         ...
 
-    async def list_by_worker(self, query: LeaseLookupQuery) -> Sequence[WorkflowStateRecord]:
+    async def list_states_by_worker(self, query: LeaseLookupQuery) -> Sequence[WorkflowStateRecord]:
         """Return workflow states leased by a worker."""
         ...
 
@@ -245,131 +231,113 @@ class WorkflowStateRepository(Protocol):
         """Return workflow states with expired leases at the query time."""
         ...
 
-
-class ApprovalGateRepository(Protocol):
-    """Repository for approval gates."""
-
-    async def save(self, gate: ApprovalGate) -> None:
+    async def save_gate(self, gate: ApprovalGate) -> None:
         """Save an approval gate snapshot."""
         ...
 
-    async def get(self, gate_id: BsonObjectId) -> ApprovalGate | None:
+    async def get_gate(self, gate_id: BsonObjectId) -> ApprovalGate | None:
         """Return a gate by stable ID."""
         ...
 
-    async def list_by_work_item(self, work_item_id: BsonObjectId) -> Sequence[ApprovalGate]:
+    async def list_gates(self, work_item_id: BsonObjectId) -> Sequence[ApprovalGate]:
         """Return gates attached to a work item."""
         ...
 
-    async def list_waiting(self, query: WaitingGateQuery) -> Sequence[ApprovalGate]:
+    async def list_waiting_gates(self, query: WaitingGateQuery) -> Sequence[ApprovalGate]:
         """Return gates waiting for a human decision."""
         ...
 
-
-class AgentRunRepository(Protocol):
-    """Repository for agent run summaries."""
-
-    async def save(self, run: AgentRun) -> None:
+    async def save_agent_run(self, run: AgentRun) -> None:
         """Save an agent run snapshot."""
         ...
 
-    async def get(self, run_id: BsonObjectId) -> AgentRun | None:
+    async def get_agent_run(self, run_id: BsonObjectId) -> AgentRun | None:
         """Return an agent run by stable ID."""
         ...
 
-    async def list_by_work_item(self, work_item_id: BsonObjectId) -> Sequence[AgentRun]:
+    async def list_agent_runs(self, work_item_id: BsonObjectId) -> Sequence[AgentRun]:
         """Return agent runs for a work item."""
         ...
 
 
-class EvidenceBundleRepository(Protocol):
-    """Repository for evidence bundles."""
+class EvidenceGateway(Protocol):
+    """Evidence bundle persistence."""
 
-    async def save(self, bundle: EvidenceBundle) -> None:
+    async def save_bundle(self, bundle: EvidenceBundle) -> None:
         """Save an evidence bundle snapshot."""
         ...
 
-    async def get(self, bundle_id: BsonObjectId) -> EvidenceBundle | None:
+    async def get_bundle(self, bundle_id: BsonObjectId) -> EvidenceBundle | None:
         """Return an evidence bundle by stable ID."""
         ...
 
-    async def list_by_subject(
+    async def list_bundles(
         self, *, subject_type: str, subject_id: BsonObjectId
     ) -> Sequence[EvidenceBundle]:
         """Return evidence bundles for a subject."""
         ...
 
 
-class ToolConnectionRepository(Protocol):
-    """Repository for configured tool connections."""
+class ToolGateway(Protocol):
+    """Tool connection, policy, request, and invocation persistence."""
 
-    async def save(self, connection: ToolConnection) -> None:
+    async def save_connection(self, connection: ToolConnection) -> None:
         """Save a tool connection snapshot."""
         ...
 
-    async def get(self, tool_connection_id: BsonObjectId) -> ToolConnection | None:
+    async def get_connection(self, tool_connection_id: BsonObjectId) -> ToolConnection | None:
         """Return a tool connection by stable ID."""
         ...
 
-    async def list_by_project(self, project_id: BsonObjectId) -> Sequence[ToolConnection]:
+    async def list_connections(self, project_id: BsonObjectId) -> Sequence[ToolConnection]:
         """Return tool connections for a project."""
         ...
 
-
-class ToolPolicyRepository(Protocol):
-    """Repository for tool policies."""
-
-    async def save(self, policy: ToolPolicy) -> None:
+    async def save_policy(self, policy: ToolPolicy) -> None:
         """Save a tool policy snapshot."""
         ...
 
-    async def get(self, tool_policy_id: BsonObjectId) -> ToolPolicy | None:
+    async def get_policy(self, tool_policy_id: BsonObjectId) -> ToolPolicy | None:
         """Return a tool policy by stable ID."""
         ...
 
-    async def find_for_action(self, query: ToolActionQuery) -> Sequence[ToolPolicy]:
+    async def find_policies(self, query: ToolActionQuery) -> Sequence[ToolPolicy]:
         """Return policies that match a tool action query."""
         ...
 
-
-class ActionRequestRepository(Protocol):
-    """Repository for external action requests."""
-
-    async def save(self, request: ActionRequest) -> None:
+    async def save_action_request(self, request: ActionRequest) -> None:
         """Save an action request snapshot."""
         ...
 
-    async def get(self, action_request_id: BsonObjectId) -> ActionRequest | None:
+    async def get_action_request(self, action_request_id: BsonObjectId) -> ActionRequest | None:
         """Return an action request by stable ID."""
         ...
 
-    async def list_by_status(self, status: ActionRequestStatus) -> Sequence[ActionRequest]:
+    async def list_action_requests_by_status(
+        self, status: ActionRequestStatus
+    ) -> Sequence[ActionRequest]:
         """Return action requests by status."""
         ...
 
-    async def list_for_gate(self, gate_id: BsonObjectId) -> Sequence[ActionRequest]:
+    async def list_action_requests_for_gate(self, gate_id: BsonObjectId) -> Sequence[ActionRequest]:
         """Return action requests linked to a required gate."""
         ...
 
-
-class ToolInvocationRepository(Protocol):
-    """Repository for audited tool invocation attempts."""
-
-    async def save(self, invocation: ToolInvocation) -> None:
+    async def save_invocation(self, invocation: ToolInvocation) -> None:
         """Save a tool invocation snapshot."""
         ...
 
-    async def get(self, tool_invocation_id: BsonObjectId) -> ToolInvocation | None:
+    async def get_invocation(self, tool_invocation_id: BsonObjectId) -> ToolInvocation | None:
         """Return a tool invocation by stable ID."""
         ...
 
-    async def list_for_action_request(
+    async def list_invocations_for_action_request(
         self, action_request_id: BsonObjectId
     ) -> Sequence[ToolInvocation]:
         """Return invocations for an action request."""
         ...
 
-    async def list_by_tool_action(
+    async def list_invocations_by_tool_action(
         self,
         query: ToolActionQuery,
         *,
@@ -379,8 +347,8 @@ class ToolInvocationRepository(Protocol):
         ...
 
 
-class WorkflowEventStore(Protocol):
-    """Append-only workflow event store."""
+class EventGateway(Protocol):
+    """Append-only workflow event persistence."""
 
     async def append(self, event: WorkflowEvent) -> None:
         """Append a workflow event."""
@@ -404,79 +372,34 @@ class WorkflowEventStore(Protocol):
 
 
 class PersistenceProvider(Protocol):
-    """Provider exposing typed persistence repositories."""
+    """Provider exposing domain persistence gateways."""
 
     @property
-    def projects(self) -> ProjectRepository:
-        """Return the project repository."""
+    def catalog(self) -> CatalogGateway:
+        """Return the project and target-repo gateway."""
         ...
 
     @property
-    def target_repos(self) -> TargetRepoRepository:
-        """Return the target repository repository."""
+    def sources(self) -> SourceGateway:
+        """Return the source data gateway."""
         ...
 
     @property
-    def source_connections(self) -> SourceConnectionRepository:
-        """Return the source connection repository."""
+    def workflow(self) -> WorkflowGateway:
+        """Return the workflow state gateway."""
         ...
 
     @property
-    def source_observations(self) -> SourceObservationRepository:
-        """Return the source observation repository."""
+    def evidence(self) -> EvidenceGateway:
+        """Return the evidence gateway."""
         ...
 
     @property
-    def sync_cursors(self) -> SyncCursorRepository:
-        """Return the sync cursor repository."""
+    def tools(self) -> ToolGateway:
+        """Return the tool-control gateway."""
         ...
 
     @property
-    def work_items(self) -> WorkItemRepository:
-        """Return the work item repository."""
-        ...
-
-    @property
-    def workflow_states(self) -> WorkflowStateRepository:
-        """Return the workflow state repository."""
-        ...
-
-    @property
-    def gates(self) -> ApprovalGateRepository:
-        """Return the approval gate repository."""
-        ...
-
-    @property
-    def agent_runs(self) -> AgentRunRepository:
-        """Return the agent run repository."""
-        ...
-
-    @property
-    def evidence_bundles(self) -> EvidenceBundleRepository:
-        """Return the evidence bundle repository."""
-        ...
-
-    @property
-    def tool_connections(self) -> ToolConnectionRepository:
-        """Return the tool connection repository."""
-        ...
-
-    @property
-    def tool_policies(self) -> ToolPolicyRepository:
-        """Return the tool policy repository."""
-        ...
-
-    @property
-    def action_requests(self) -> ActionRequestRepository:
-        """Return the action request repository."""
-        ...
-
-    @property
-    def tool_invocations(self) -> ToolInvocationRepository:
-        """Return the tool invocation repository."""
-        ...
-
-    @property
-    def workflow_events(self) -> WorkflowEventStore:
-        """Return the workflow event store."""
+    def events(self) -> EventGateway:
+        """Return the workflow event gateway."""
         ...

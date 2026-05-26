@@ -1,6 +1,8 @@
 """Workflow state vocabulary shared by Hoisa domain records."""
 
-from pydantic import Field
+from typing import Self
+
+from pydantic import Field, model_validator
 
 from hoisa.domain.models import BsonObjectId, CollectionRoot, HoisaModel, UtcDatetime
 from hoisa.domain.privacy import PublicSafetyClass, RedactionStatus
@@ -62,3 +64,9 @@ class WorkflowStateRecord(CollectionRoot):
     source_provenance: SourceProvenance
     public_safety: PublicSafetyClass
     redaction_status: RedactionStatus
+
+    @model_validator(mode="after")
+    def require_id_to_match_work_item(self) -> Self:
+        if self.id != self.work_item_id:
+            raise ValueError("Workflow state id must match work_item_id.")
+        return self

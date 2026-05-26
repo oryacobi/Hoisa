@@ -1,5 +1,6 @@
 from datetime import UTC, datetime
 import hashlib
+from typing import Any, cast
 
 from bson import ObjectId
 from pydantic import ValidationError
@@ -49,6 +50,28 @@ def test_collection_roots_normalize_timezone_aware_timestamps() -> None:
     assert directive.id == _id("directive-1")
     assert directive.created_at.tzinfo == UTC
     assert directive.schema_version == 1
+
+
+def test_bson_object_ids_validate_from_strings_and_dump_as_json_strings() -> None:
+    directive_id = _id("directive-1")
+    directive = Directive(
+        id=cast(Any, str(directive_id)),
+        created_at=datetime(2026, 5, 25, 8, 0, tzinfo=UTC),
+        updated_at=datetime(2026, 5, 25, 8, 5, tzinfo=UTC),
+        project=_project(),
+        target_repo=_repo(),
+        summary="Define records.",
+        body="Define public-safe records.",
+        requested_review_route=ReviewRoute.REVIEW_BOTH,
+        risk=RiskLevel.HIGH,
+        source_provenance=_provenance(),
+        public_safety=PublicSafetyClass.PUBLIC_SAFE_SAMPLE,
+        redaction_status=RedactionStatus.NOT_REQUIRED,
+    )
+
+    assert directive.id == directive_id
+    assert isinstance(directive.id, ObjectId)
+    assert directive.model_dump(mode="json")["id"] == str(directive_id)
 
 
 def test_naive_datetimes_are_rejected() -> None:

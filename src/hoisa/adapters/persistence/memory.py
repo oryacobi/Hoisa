@@ -2,6 +2,7 @@
 
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
+from typing import Any
 
 from hoisa.domain.events import EventSubject, WorkflowEvent
 from hoisa.domain.evidence import EvidenceBundle
@@ -21,30 +22,21 @@ from hoisa.domain.tool_control import (
 from hoisa.domain.work_items import WorkItem
 from hoisa.domain.workflow_state import Blocker, WorkflowStateRecord
 from hoisa.ports.persistence import (
-    ActionRequestRepository,
-    AgentRunRepository,
-    ApprovalGateRepository,
+    CatalogGateway,
     DuplicateRecordError,
-    EvidenceBundleRepository,
+    EventGateway,
+    EvidenceGateway,
     LeaseLookupQuery,
     PersistenceProvider,
-    ProjectRepository,
     RepoLookup,
     RunnableWorkQuery,
-    SourceConnectionRepository,
+    SourceGateway,
     SourceObservationQuery,
-    SourceObservationRepository,
     SyncCursorKey,
-    SyncCursorRepository,
-    TargetRepoRepository,
     ToolActionQuery,
-    ToolConnectionRepository,
-    ToolInvocationRepository,
-    ToolPolicyRepository,
+    ToolGateway,
     WaitingGateQuery,
-    WorkflowEventStore,
-    WorkflowStateRepository,
-    WorkItemRepository,
+    WorkflowGateway,
 )
 
 
@@ -65,273 +57,227 @@ class _MemoryStore:
     action_requests: dict[BsonObjectId, ActionRequest] = field(default_factory=dict)
     tool_invocations: dict[BsonObjectId, ToolInvocation] = field(default_factory=dict)
     workflow_events: dict[BsonObjectId, WorkflowEvent] = field(default_factory=dict)
-    workflow_event_order: list[BsonObjectId] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class _MemoryEntityStore[T]:
+    records: dict[BsonObjectId, T]
+    duplicate_label: str
+    key: Callable[[T], BsonObjectId]
+    unique_keys: tuple[Callable[[T], tuple[object, ...] | None], ...] = ()
+
+    def save(self, entity: T) -> None:
+        entity_id = self.key(entity)
+        self._reject_unique_collisions(entity, entity_id)
+        self.records[entity_id] = entity
+
+    def insert(self, entity: T) -> None:
+        entity_id = self.key(entity)
+        if entity_id in self.records:
+            raise DuplicateRecordError(f"{self.duplicate_label} already exists: {entity_id}")
+        self._reject_unique_collisions(entity, entity_id)
+        self.records[entity_id] = entity
+
+    def get(self, entity_id: BsonObjectId) -> T | None:
+        return self.records.get(entity_id)
+
+    def find(
+        self,
+        predicate: Callable[[T], bool] | None = None,
+        *,
+        sort_key: Callable[[T], Any] | None = None,
+    ) -> tuple[T, ...]:
+        selected = (
+            entity for entity in self.records.values() if predicate is None or predicate(entity)
+        )
+        key = sort_key or (lambda entity: str(self.key(entity)))
+        return tuple(sorted(selected, key=key))
+
+    def _reject_unique_collisions(self, entity: T, entity_id: BsonObjectId) -> None:
+        for unique_key in self.unique_keys:
+            new_key = unique_key(entity)
+            if new_key is None:
+                continue
+            for existing in self.records.values():
+                existing_key = unique_key(existing)
+                if self.key(existing) != entity_id and existing_key == new_key:
+                    raise DuplicateRecordError(f"Duplicate {self.duplicate_label}: {new_key}")
 
 
 class InMemoryPersistenceProvider(PersistenceProvider):
-    """In-memory implementation of all persistence repositories."""
+    """In-memory implementation of Hoisa persistence gateways."""
 
     def __init__(self) -> None:
-        self._store = _MemoryStore()
-        self._projects = _InMemoryProjectRepository(self._store)
-        self._target_repos = _InMemoryTargetRepoRepository(self._store)
-        self._source_connections = _InMemorySourceConnectionRepository(self._store)
-        self._source_observations = _InMemorySourceObservationRepository(self._store)
-        self._sync_cursors = _InMemorySyncCursorRepository(self._store)
-        self._work_items = _InMemoryWorkItemRepository(self._store)
-        self._workflow_states = _InMemoryWorkflowStateRepository(self._store)
-        self._gates = _InMemoryApprovalGateRepository(self._store)
-        self._agent_runs = _InMemoryAgentRunRepository(self._store)
-        self._evidence_bundles = _InMemoryEvidenceBundleRepository(self._store)
-        self._tool_connections = _InMemoryToolConnectionRepository(self._store)
-        self._tool_policies = _InMemoryToolPolicyRepository(self._store)
-        self._action_requests = _InMemoryActionRequestRepository(self._store)
-        self._tool_invocations = _InMemoryToolInvocationRepository(self._store)
-        self._workflow_events = _InMemoryWorkflowEventStore(self._store)
+        store = _MemoryStore()
+        self._catalog = _InMemoryCatalogGateway(store)
+        self._sources = _InMemorySourceGateway(store)
+        self._workflow = _InMemoryWorkflowGateway(store)
+        self._evidence = _InMemoryEvidenceGateway(store)
+        self._tools = _InMemoryToolGateway(store)
+        self._events = _InMemoryEventGateway(store)
 
     @property
-    def projects(self) -> ProjectRepository:
-        """Return the project repository."""
+    def catalog(self) -> CatalogGateway:
+        """Return the project and target-repo gateway."""
 
-        return self._projects
-
-    @property
-    def target_repos(self) -> TargetRepoRepository:
-        """Return the target repository repository."""
-
-        return self._target_repos
+        return self._catalog
 
     @property
-    def source_connections(self) -> SourceConnectionRepository:
-        """Return the source connection repository."""
+    def sources(self) -> SourceGateway:
+        """Return the source data gateway."""
 
-        return self._source_connections
-
-    @property
-    def source_observations(self) -> SourceObservationRepository:
-        """Return the source observation repository."""
-
-        return self._source_observations
+        return self._sources
 
     @property
-    def sync_cursors(self) -> SyncCursorRepository:
-        """Return the sync cursor repository."""
+    def workflow(self) -> WorkflowGateway:
+        """Return the workflow state gateway."""
 
-        return self._sync_cursors
-
-    @property
-    def work_items(self) -> WorkItemRepository:
-        """Return the work item repository."""
-
-        return self._work_items
+        return self._workflow
 
     @property
-    def workflow_states(self) -> WorkflowStateRepository:
-        """Return the workflow state repository."""
+    def evidence(self) -> EvidenceGateway:
+        """Return the evidence gateway."""
 
-        return self._workflow_states
-
-    @property
-    def gates(self) -> ApprovalGateRepository:
-        """Return the approval gate repository."""
-
-        return self._gates
+        return self._evidence
 
     @property
-    def agent_runs(self) -> AgentRunRepository:
-        """Return the agent run repository."""
+    def tools(self) -> ToolGateway:
+        """Return the tool-control gateway."""
 
-        return self._agent_runs
-
-    @property
-    def evidence_bundles(self) -> EvidenceBundleRepository:
-        """Return the evidence bundle repository."""
-
-        return self._evidence_bundles
+        return self._tools
 
     @property
-    def tool_connections(self) -> ToolConnectionRepository:
-        """Return the tool connection repository."""
+    def events(self) -> EventGateway:
+        """Return the workflow event gateway."""
 
-        return self._tool_connections
-
-    @property
-    def tool_policies(self) -> ToolPolicyRepository:
-        """Return the tool policy repository."""
-
-        return self._tool_policies
-
-    @property
-    def action_requests(self) -> ActionRequestRepository:
-        """Return the action request repository."""
-
-        return self._action_requests
-
-    @property
-    def tool_invocations(self) -> ToolInvocationRepository:
-        """Return the tool invocation repository."""
-
-        return self._tool_invocations
-
-    @property
-    def workflow_events(self) -> WorkflowEventStore:
-        """Return the workflow event store."""
-
-        return self._workflow_events
+        return self._events
 
 
-class _InMemoryProjectRepository:
+class _InMemoryCatalogGateway:
     def __init__(self, store: _MemoryStore) -> None:
-        self._store = store
-
-    async def save(self, project: Project) -> None:
-        self._store.projects[project.id] = project
-
-    async def get(self, project_id: BsonObjectId) -> Project | None:
-        return self._store.projects.get(project_id)
-
-    async def list_all(self) -> Sequence[Project]:
-        return _sorted_by_id(self._store.projects.values(), lambda project: project.id)
-
-
-class _InMemoryTargetRepoRepository:
-    def __init__(self, store: _MemoryStore) -> None:
-        self._store = store
-
-    async def save(self, target_repo: TargetRepo) -> None:
-        _reject_collision(
-            ((repo.id, _target_repo_key(repo)) for repo in self._store.target_repos.values()),
-            new_id=target_repo.id,
-            new_key=_target_repo_key(target_repo),
-            label="target repository provider identity",
+        self._projects = _MemoryEntityStore(store.projects, "project", lambda project: project.id)
+        self._target_repos = _MemoryEntityStore(
+            store.target_repos,
+            "target repository",
+            lambda repo: repo.id,
+            unique_keys=(_target_repo_key,),
         )
-        self._store.target_repos[target_repo.id] = target_repo
 
-    async def get(self, target_repo_id: BsonObjectId) -> TargetRepo | None:
-        return self._store.target_repos.get(target_repo_id)
+    async def save_project(self, project: Project) -> None:
+        self._projects.save(project)
 
-    async def get_by_provider(self, lookup: RepoLookup) -> TargetRepo | None:
+    async def get_project(self, project_id: BsonObjectId) -> Project | None:
+        return self._projects.get(project_id)
+
+    async def list_projects(self) -> Sequence[Project]:
+        return self._projects.find()
+
+    async def save_target_repo(self, target_repo: TargetRepo) -> None:
+        self._target_repos.save(target_repo)
+
+    async def get_target_repo(self, target_repo_id: BsonObjectId) -> TargetRepo | None:
+        return self._target_repos.get(target_repo_id)
+
+    async def get_target_repo_by_provider(self, lookup: RepoLookup) -> TargetRepo | None:
         key = (lookup.provider.value, lookup.owner, lookup.name)
-        for repo in self._store.target_repos.values():
+        for repo in self._target_repos.records.values():
             if _target_repo_key(repo) == key:
                 return repo
         return None
 
-    async def list_by_project(self, project_id: BsonObjectId) -> Sequence[TargetRepo]:
-        return _sorted_by_id(
-            (repo for repo in self._store.target_repos.values() if repo.project.id == project_id),
-            lambda repo: repo.id,
-        )
+    async def list_target_repos(self, project_id: BsonObjectId) -> Sequence[TargetRepo]:
+        return self._target_repos.find(lambda repo: repo.project.id == project_id)
 
 
-class _InMemorySourceConnectionRepository:
+class _InMemorySourceGateway:
     def __init__(self, store: _MemoryStore) -> None:
-        self._store = store
-
-    async def save(self, connection: SourceConnection) -> None:
-        self._store.source_connections[connection.id] = connection
-
-    async def get(self, source_connection_id: BsonObjectId) -> SourceConnection | None:
-        return self._store.source_connections.get(source_connection_id)
-
-    async def list_by_project(self, project_id: BsonObjectId) -> Sequence[SourceConnection]:
-        return _sorted_by_id(
-            (
-                connection
-                for connection in self._store.source_connections.values()
-                if connection.project.id == project_id
-            ),
+        self._connections = _MemoryEntityStore(
+            store.source_connections,
+            "source connection",
             lambda connection: connection.id,
         )
-
-
-class _InMemorySourceObservationRepository:
-    def __init__(self, store: _MemoryStore) -> None:
-        self._store = store
-
-    async def save(self, observation: SourceObservation) -> None:
-        _reject_collision(
-            (
-                (existing.id, _source_observation_key(existing))
-                for existing in self._store.source_observations.values()
-            ),
-            new_id=observation.id,
-            new_key=_source_observation_key(observation),
-            label="source observation external identity",
-        )
-        self._store.source_observations[observation.id] = observation
-
-    async def get(self, observation_id: BsonObjectId) -> SourceObservation | None:
-        return self._store.source_observations.get(observation_id)
-
-    async def find_by_source(self, query: SourceObservationQuery) -> Sequence[SourceObservation]:
-        return _sorted_by_id(
-            (
-                observation
-                for observation in self._store.source_observations.values()
-                if _matches_observation_query(observation, query)
-            ),
+        self._observations = _MemoryEntityStore(
+            store.source_observations,
+            "source observation",
             lambda observation: observation.id,
+            unique_keys=(_source_observation_key,),
+        )
+        self._cursors = _MemoryEntityStore(
+            store.sync_cursors,
+            "sync cursor",
+            lambda cursor: cursor.id,
+            unique_keys=(_sync_cursor_unique_key,),
         )
 
+    async def save_connection(self, connection: SourceConnection) -> None:
+        self._connections.save(connection)
 
-class _InMemorySyncCursorRepository:
-    def __init__(self, store: _MemoryStore) -> None:
-        self._store = store
+    async def get_connection(self, source_connection_id: BsonObjectId) -> SourceConnection | None:
+        return self._connections.get(source_connection_id)
 
-    async def save(self, cursor: SyncCursor) -> None:
-        _reject_collision(
-            (
-                (existing.id, _sync_cursor_key(existing))
-                for existing in self._store.sync_cursors.values()
-            ),
-            new_id=cursor.id,
-            new_key=_sync_cursor_key(cursor),
-            label="sync cursor source/name",
+    async def list_connections(self, project_id: BsonObjectId) -> Sequence[SourceConnection]:
+        return self._connections.find(
+            lambda connection: connection.project.id == project_id,
         )
-        self._store.sync_cursors[cursor.id] = cursor
 
-    async def get(self, key: SyncCursorKey) -> SyncCursor | None:
+    async def save_observation(self, observation: SourceObservation) -> None:
+        self._observations.save(observation)
+
+    async def get_observation(self, observation_id: BsonObjectId) -> SourceObservation | None:
+        return self._observations.get(observation_id)
+
+    async def find_observations(self, query: SourceObservationQuery) -> Sequence[SourceObservation]:
+        return self._observations.find(
+            lambda observation: _matches_observation_query(observation, query)
+        )
+
+    async def save_cursor(self, cursor: SyncCursor) -> None:
+        self._cursors.save(cursor)
+
+    async def get_cursor(self, key: SyncCursorKey) -> SyncCursor | None:
         target = (key.source_connection_id, key.cursor_name)
-        for cursor in self._store.sync_cursors.values():
-            if _sync_cursor_key(cursor) == target:
+        for cursor in self._cursors.records.values():
+            if _sync_cursor_unique_key(cursor) == target:
                 return cursor
         return None
 
-    async def list_by_source(self, source_connection_id: BsonObjectId) -> Sequence[SyncCursor]:
-        return _sorted_by_id(
-            (
-                cursor
-                for cursor in self._store.sync_cursors.values()
-                if cursor.source_connection_id == source_connection_id
-            ),
-            lambda cursor: cursor.id,
+    async def list_cursors(self, source_connection_id: BsonObjectId) -> Sequence[SyncCursor]:
+        return self._cursors.find(
+            lambda cursor: cursor.source_connection_id == source_connection_id,
         )
 
 
-class _InMemoryWorkItemRepository:
+class _InMemoryWorkflowGateway:
     def __init__(self, store: _MemoryStore) -> None:
         self._store = store
+        self._work_items = _MemoryEntityStore(
+            store.work_items,
+            "work item tracker issue",
+            lambda work_item: work_item.id,
+            unique_keys=(_tracker_issue_key,),
+        )
+        self._states = _MemoryEntityStore(
+            store.workflow_states,
+            "workflow state",
+            lambda state: state.id,
+        )
+        self._gates = _MemoryEntityStore(store.gates, "approval gate", lambda gate: gate.id)
+        self._agent_runs = _MemoryEntityStore(
+            store.agent_runs,
+            "agent run",
+            lambda run: run.id,
+        )
 
-    async def save(self, work_item: WorkItem) -> None:
-        if work_item.tracker_issue is not None:
-            _reject_collision(
-                (
-                    (existing.id, _tracker_issue_key(existing))
-                    for existing in self._store.work_items.values()
-                    if existing.tracker_issue is not None
-                ),
-                new_id=work_item.id,
-                new_key=_tracker_issue_key(work_item),
-                label="work item tracker issue",
-            )
-        self._store.work_items[work_item.id] = work_item
+    async def save_work_item(self, work_item: WorkItem) -> None:
+        self._work_items.save(work_item)
 
-    async def get(self, work_item_id: BsonObjectId) -> WorkItem | None:
-        return self._store.work_items.get(work_item_id)
+    async def get_work_item(self, work_item_id: BsonObjectId) -> WorkItem | None:
+        return self._work_items.get(work_item_id)
 
-    async def find_by_tracker_issue(self, *, provider: str, issue_number: int) -> WorkItem | None:
-        for work_item in self._store.work_items.values():
+    async def find_work_item_by_tracker_issue(
+        self, *, provider: str, issue_number: int
+    ) -> WorkItem | None:
+        for work_item in self._work_items.records.values():
             if (
                 work_item.tracker_issue is not None
                 and work_item.tracker_issue.provider == provider
@@ -340,30 +286,23 @@ class _InMemoryWorkItemRepository:
                 return work_item
         return None
 
-    async def find_runnable(self, query: RunnableWorkQuery) -> Sequence[WorkItem]:
+    async def find_runnable_work(self, query: RunnableWorkQuery) -> Sequence[WorkItem]:
         return _sorted_work_items(
             work_item
-            for work_item in self._store.work_items.values()
+            for work_item in self._work_items.records.values()
             if _is_runnable(work_item, self._store.workflow_states.get(work_item.id), query)
         )
 
+    async def save_state(self, state_record: WorkflowStateRecord) -> None:
+        self._states.save(state_record)
 
-class _InMemoryWorkflowStateRepository:
-    def __init__(self, store: _MemoryStore) -> None:
-        self._store = store
+    async def get_state(self, work_item_id: BsonObjectId) -> WorkflowStateRecord | None:
+        return self._states.get(work_item_id)
 
-    async def save(self, state_record: WorkflowStateRecord) -> None:
-        self._store.workflow_states[state_record.work_item_id] = state_record.model_copy(
-            update={"id": state_record.work_item_id}
-        )
-
-    async def get(self, work_item_id: BsonObjectId) -> WorkflowStateRecord | None:
-        return self._store.workflow_states.get(work_item_id)
-
-    async def list_by_worker(self, query: LeaseLookupQuery) -> Sequence[WorkflowStateRecord]:
+    async def list_states_by_worker(self, query: LeaseLookupQuery) -> Sequence[WorkflowStateRecord]:
         return _sorted_state_records(
             record
-            for record in self._store.workflow_states.values()
+            for record in self._states.records.values()
             if record.state.lease is not None
             and (not query.worker_id or record.state.lease.worker_id == query.worker_id)
         )
@@ -371,7 +310,7 @@ class _InMemoryWorkflowStateRepository:
     async def list_active_leases(self, query: LeaseLookupQuery) -> Sequence[WorkflowStateRecord]:
         return _sorted_state_records(
             record
-            for record in self._store.workflow_states.values()
+            for record in self._states.records.values()
             if record.state.lease is not None
             and (not query.worker_id or record.state.lease.worker_id == query.worker_id)
             and (query.now is None or record.state.lease.expires_at > query.now)
@@ -382,247 +321,200 @@ class _InMemoryWorkflowStateRepository:
             return ()
         return _sorted_state_records(
             record
-            for record in self._store.workflow_states.values()
+            for record in self._states.records.values()
             if record.state.lease is not None
             and (not query.worker_id or record.state.lease.worker_id == query.worker_id)
             and record.state.lease.expires_at <= query.now
         )
 
+    async def save_gate(self, gate: ApprovalGate) -> None:
+        self._gates.save(gate)
 
-class _InMemoryApprovalGateRepository:
-    def __init__(self, store: _MemoryStore) -> None:
-        self._store = store
+    async def get_gate(self, gate_id: BsonObjectId) -> ApprovalGate | None:
+        return self._gates.get(gate_id)
 
-    async def save(self, gate: ApprovalGate) -> None:
-        self._store.gates[gate.id] = gate
-
-    async def get(self, gate_id: BsonObjectId) -> ApprovalGate | None:
-        return self._store.gates.get(gate_id)
-
-    async def list_by_work_item(self, work_item_id: BsonObjectId) -> Sequence[ApprovalGate]:
+    async def list_gates(self, work_item_id: BsonObjectId) -> Sequence[ApprovalGate]:
         return _sorted_gates(
-            gate for gate in self._store.gates.values() if gate.work_item_id == work_item_id
+            gate for gate in self._gates.records.values() if gate.work_item_id == work_item_id
         )
 
-    async def list_waiting(self, query: WaitingGateQuery) -> Sequence[ApprovalGate]:
+    async def list_waiting_gates(self, query: WaitingGateQuery) -> Sequence[ApprovalGate]:
         return _sorted_gates(
             gate
-            for gate in self._store.gates.values()
+            for gate in self._gates.records.values()
             if gate.gate_status == GateStatus.WAITING
             and _matches_waiting_gate(gate, query, self._store)
         )
 
+    async def save_agent_run(self, run: AgentRun) -> None:
+        self._agent_runs.save(run)
 
-class _InMemoryAgentRunRepository:
+    async def get_agent_run(self, run_id: BsonObjectId) -> AgentRun | None:
+        return self._agent_runs.get(run_id)
+
+    async def list_agent_runs(self, work_item_id: BsonObjectId) -> Sequence[AgentRun]:
+        return self._agent_runs.find(lambda run: run.work_item_id == work_item_id)
+
+
+class _InMemoryEvidenceGateway:
     def __init__(self, store: _MemoryStore) -> None:
-        self._store = store
-
-    async def save(self, run: AgentRun) -> None:
-        self._store.agent_runs[run.id] = run
-
-    async def get(self, run_id: BsonObjectId) -> AgentRun | None:
-        return self._store.agent_runs.get(run_id)
-
-    async def list_by_work_item(self, work_item_id: BsonObjectId) -> Sequence[AgentRun]:
-        return _sorted_by_id(
-            (run for run in self._store.agent_runs.values() if run.work_item_id == work_item_id),
-            lambda run: run.id,
-        )
-
-
-class _InMemoryEvidenceBundleRepository:
-    def __init__(self, store: _MemoryStore) -> None:
-        self._store = store
-
-    async def save(self, bundle: EvidenceBundle) -> None:
-        self._store.evidence_bundles[bundle.id] = bundle
-
-    async def get(self, bundle_id: BsonObjectId) -> EvidenceBundle | None:
-        return self._store.evidence_bundles.get(bundle_id)
-
-    async def list_by_subject(
-        self, *, subject_type: str, subject_id: BsonObjectId
-    ) -> Sequence[EvidenceBundle]:
-        return _sorted_by_id(
-            (
-                bundle
-                for bundle in self._store.evidence_bundles.values()
-                if bundle.subject_type == subject_type and bundle.subject_id == subject_id
-            ),
+        self._bundles = _MemoryEntityStore(
+            store.evidence_bundles,
+            "evidence bundle",
             lambda bundle: bundle.id,
         )
 
+    async def save_bundle(self, bundle: EvidenceBundle) -> None:
+        self._bundles.save(bundle)
 
-class _InMemoryToolConnectionRepository:
+    async def get_bundle(self, bundle_id: BsonObjectId) -> EvidenceBundle | None:
+        return self._bundles.get(bundle_id)
+
+    async def list_bundles(
+        self, *, subject_type: str, subject_id: BsonObjectId
+    ) -> Sequence[EvidenceBundle]:
+        return self._bundles.find(
+            lambda bundle: bundle.subject_type == subject_type and bundle.subject_id == subject_id,
+        )
+
+
+class _InMemoryToolGateway:
     def __init__(self, store: _MemoryStore) -> None:
         self._store = store
-
-    async def save(self, connection: ToolConnection) -> None:
-        self._store.tool_connections[connection.id] = connection
-
-    async def get(self, tool_connection_id: BsonObjectId) -> ToolConnection | None:
-        return self._store.tool_connections.get(tool_connection_id)
-
-    async def list_by_project(self, project_id: BsonObjectId) -> Sequence[ToolConnection]:
-        return _sorted_by_id(
-            (
-                connection
-                for connection in self._store.tool_connections.values()
-                if connection.project.id == project_id
-            ),
+        self._connections = _MemoryEntityStore(
+            store.tool_connections,
+            "tool connection",
             lambda connection: connection.id,
         )
-
-
-class _InMemoryToolPolicyRepository:
-    def __init__(self, store: _MemoryStore) -> None:
-        self._store = store
-
-    async def save(self, policy: ToolPolicy) -> None:
-        _reject_collision(
-            (
-                (existing.id, _tool_policy_key(existing))
-                for existing in self._store.tool_policies.values()
-            ),
-            new_id=policy.id,
-            new_key=_tool_policy_key(policy),
-            label="tool policy action identity",
-        )
-        self._store.tool_policies[policy.id] = policy
-
-    async def get(self, tool_policy_id: BsonObjectId) -> ToolPolicy | None:
-        return self._store.tool_policies.get(tool_policy_id)
-
-    async def find_for_action(self, query: ToolActionQuery) -> Sequence[ToolPolicy]:
-        return _sorted_by_id(
-            (
-                policy
-                for policy in self._store.tool_policies.values()
-                if _matches_tool_action(
-                    policy.project.id,
-                    policy.tool_type,
-                    policy.action_type,
-                    query,
-                )
-            ),
+        self._policies = _MemoryEntityStore(
+            store.tool_policies,
+            "tool policy",
             lambda policy: policy.id,
+            unique_keys=(_tool_policy_key,),
         )
-
-
-class _InMemoryActionRequestRepository:
-    def __init__(self, store: _MemoryStore) -> None:
-        self._store = store
-
-    async def save(self, request: ActionRequest) -> None:
-        self._store.action_requests[request.id] = request
-
-    async def get(self, action_request_id: BsonObjectId) -> ActionRequest | None:
-        return self._store.action_requests.get(action_request_id)
-
-    async def list_by_status(self, status: ActionRequestStatus) -> Sequence[ActionRequest]:
-        return _sorted_by_id(
-            (
-                request
-                for request in self._store.action_requests.values()
-                if request.status == status
-            ),
+        self._action_requests = _MemoryEntityStore(
+            store.action_requests,
+            "action request",
             lambda request: request.id,
         )
-
-    async def list_for_gate(self, gate_id: BsonObjectId) -> Sequence[ActionRequest]:
-        return _sorted_by_id(
-            (
-                request
-                for request in self._store.action_requests.values()
-                if request.required_gate_id == gate_id
-            ),
-            lambda request: request.id,
+        self._invocations = _MemoryEntityStore(
+            store.tool_invocations,
+            "tool invocation",
+            lambda invocation: invocation.id,
         )
 
+    async def save_connection(self, connection: ToolConnection) -> None:
+        self._connections.save(connection)
 
-class _InMemoryToolInvocationRepository:
-    def __init__(self, store: _MemoryStore) -> None:
-        self._store = store
+    async def get_connection(self, tool_connection_id: BsonObjectId) -> ToolConnection | None:
+        return self._connections.get(tool_connection_id)
 
-    async def save(self, invocation: ToolInvocation) -> None:
-        self._store.tool_invocations[invocation.id] = invocation
+    async def list_connections(self, project_id: BsonObjectId) -> Sequence[ToolConnection]:
+        return self._connections.find(
+            lambda connection: connection.project.id == project_id,
+        )
 
-    async def get(self, tool_invocation_id: BsonObjectId) -> ToolInvocation | None:
-        return self._store.tool_invocations.get(tool_invocation_id)
+    async def save_policy(self, policy: ToolPolicy) -> None:
+        self._policies.save(policy)
 
-    async def list_for_action_request(
+    async def get_policy(self, tool_policy_id: BsonObjectId) -> ToolPolicy | None:
+        return self._policies.get(tool_policy_id)
+
+    async def find_policies(self, query: ToolActionQuery) -> Sequence[ToolPolicy]:
+        return self._policies.find(
+            lambda policy: _matches_tool_action(
+                policy.project.id,
+                policy.tool_type,
+                policy.action_type,
+                query,
+            )
+        )
+
+    async def save_action_request(self, request: ActionRequest) -> None:
+        self._action_requests.save(request)
+
+    async def get_action_request(self, action_request_id: BsonObjectId) -> ActionRequest | None:
+        return self._action_requests.get(action_request_id)
+
+    async def list_action_requests_by_status(
+        self, status: ActionRequestStatus
+    ) -> Sequence[ActionRequest]:
+        return self._action_requests.find(lambda request: request.status == status)
+
+    async def list_action_requests_for_gate(self, gate_id: BsonObjectId) -> Sequence[ActionRequest]:
+        return self._action_requests.find(lambda request: request.required_gate_id == gate_id)
+
+    async def save_invocation(self, invocation: ToolInvocation) -> None:
+        self._invocations.save(invocation)
+
+    async def get_invocation(self, tool_invocation_id: BsonObjectId) -> ToolInvocation | None:
+        return self._invocations.get(tool_invocation_id)
+
+    async def list_invocations_for_action_request(
         self, action_request_id: BsonObjectId
     ) -> Sequence[ToolInvocation]:
         return _sorted_invocations(
             invocation
-            for invocation in self._store.tool_invocations.values()
+            for invocation in self._invocations.records.values()
             if invocation.action_request_id == action_request_id
         )
 
-    async def list_by_tool_action(
+    async def list_invocations_by_tool_action(
         self,
         query: ToolActionQuery,
         *,
         status: ToolInvocationStatus | None = None,
     ) -> Sequence[ToolInvocation]:
+        project_request_ids: set[BsonObjectId] | None = None
+        if query.project_id is not None:
+            project_request_ids = {
+                request.id
+                for request in self._action_requests.records.values()
+                if request.project.id == query.project_id
+            }
         return _sorted_invocations(
             invocation
-            for invocation in self._store.tool_invocations.values()
-            if _matches_tool_action(
-                _invocation_project_id(invocation, self._store),
-                invocation.tool_type,
-                invocation.action_type,
-                query,
-            )
+            for invocation in self._invocations.records.values()
+            if _matches_tool_surface(invocation.tool_type, invocation.action_type, query)
             and (status is None or invocation.status == status)
+            and (project_request_ids is None or invocation.action_request_id in project_request_ids)
         )
 
 
-class _InMemoryWorkflowEventStore:
+class _InMemoryEventGateway:
     def __init__(self, store: _MemoryStore) -> None:
-        self._store = store
+        self._events = _MemoryEntityStore(
+            store.workflow_events,
+            "Workflow event",
+            lambda event: event.id,
+        )
 
     async def append(self, event: WorkflowEvent) -> None:
-        if event.id in self._store.workflow_events:
-            raise DuplicateRecordError(f"Workflow event already exists: {event.id}")
-        self._store.workflow_events[event.id] = event
-        self._store.workflow_event_order.append(event.id)
+        self._events.insert(event)
 
     async def get(self, event_id: BsonObjectId) -> WorkflowEvent | None:
-        return self._store.workflow_events.get(event_id)
+        return self._events.get(event_id)
 
     async def list_for_subject(self, subject: EventSubject) -> Sequence[WorkflowEvent]:
         return _sorted_events(
-            event for event in self._store.workflow_events.values() if event.subject == subject
+            event for event in self._events.records.values() if event.subject == subject
         )
 
     async def list_for_correlation(self, correlation_id: str) -> Sequence[WorkflowEvent]:
         return _sorted_events(
             event
-            for event in self._store.workflow_events.values()
+            for event in self._events.records.values()
             if event.correlation_id == correlation_id
         )
 
     async def list_recent(self, *, limit: int) -> Sequence[WorkflowEvent]:
         if limit <= 0:
             return ()
-        ordered = _sorted_events(self._store.workflow_events.values())
+        ordered = _sorted_events(self._events.records.values())
         return ordered[-limit:]
 
 
-def _reject_collision(
-    existing: Iterable[tuple[BsonObjectId, tuple[object, ...]]],
-    *,
-    new_id: BsonObjectId,
-    new_key: tuple[object, ...],
-    label: str,
-) -> None:
-    for record_id, key in existing:
-        if record_id != new_id and key == new_key:
-            raise DuplicateRecordError(f"Duplicate {label}: {new_key}")
-
-
-def _target_repo_key(repo: TargetRepo) -> tuple[str, str, str]:
+def _target_repo_key(repo: TargetRepo) -> tuple[object, ...]:
     return (repo.provider.value, repo.owner, repo.name)
 
 
@@ -634,16 +526,16 @@ def _source_observation_key(observation: SourceObservation) -> tuple[object, ...
     )
 
 
-def _sync_cursor_key(cursor: SyncCursor) -> tuple[object, ...]:
+def _sync_cursor_unique_key(cursor: SyncCursor) -> tuple[object, ...]:
     return (cursor.source_connection_id, cursor.cursor_name)
 
 
-def _tracker_issue_key(work_item: WorkItem) -> tuple[str, str]:
+def _tracker_issue_key(work_item: WorkItem) -> tuple[object, ...] | None:
     if work_item.tracker_issue is None:
-        return ("", "")
+        return None
     return (
         work_item.tracker_issue.provider,
-        str(work_item.tracker_issue.issue_number),
+        work_item.tracker_issue.issue_number,
     )
 
 
@@ -684,19 +576,16 @@ def _matches_tool_action(
     query: ToolActionQuery,
 ) -> bool:
     return (
-        (not query.project_id or project_id == query.project_id)
+        (query.project_id is None or project_id == query.project_id)
         and (not query.tool_type or tool_type == query.tool_type)
         and (not query.action_type or action_type == query.action_type)
     )
 
 
-def _invocation_project_id(invocation: ToolInvocation, store: _MemoryStore) -> BsonObjectId | None:
-    if invocation.action_request_id is None:
-        return None
-    request = store.action_requests.get(invocation.action_request_id)
-    if request is None:
-        return None
-    return request.project.id
+def _matches_tool_surface(tool_type: str, action_type: str, query: ToolActionQuery) -> bool:
+    return (not query.tool_type or tool_type == query.tool_type) and (
+        not query.action_type or action_type == query.action_type
+    )
 
 
 def _is_runnable(
@@ -714,8 +603,8 @@ def _is_runnable(
         stage == query.workflow_stage
         and status == query.status
         and (query.risk is None or risk == query.risk)
-        and (not query.project_id or work_item.target_repo.project.id == query.project_id)
-        and (not query.target_repo_id or work_item.target_repo.id == query.target_repo_id)
+        and (query.project_id is None or work_item.target_repo.project.id == query.project_id)
+        and (query.target_repo_id is None or work_item.target_repo.id == query.target_repo_id)
         and (
             query.include_blocked
             or (not work_item.blocker_summaries and not _has_active_blockers(blockers))
@@ -726,10 +615,6 @@ def _is_runnable(
 
 def _has_active_blockers(blockers: Sequence[Blocker]) -> bool:
     return any(blocker.resolved_at is None for blocker in blockers)
-
-
-def _sorted_by_id[T](items: Iterable[T], key: Callable[[T], object]) -> tuple[T, ...]:
-    return tuple(sorted(items, key=lambda item: str(key(item))))
 
 
 def _sorted_work_items(items: Iterable[WorkItem]) -> tuple[WorkItem, ...]:

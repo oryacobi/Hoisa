@@ -40,10 +40,10 @@ def test_events_are_append_only_and_query_order_is_deterministic() -> None:
 def test_provider_instances_do_not_share_state() -> None:
     first = InMemoryPersistenceProvider()
     second = InMemoryPersistenceProvider()
-    run(first.projects.save(project()))
+    run(first.catalog.save_project(project()))
 
-    assert len(run(first.projects.list_all())) == 1
-    assert len(run(second.projects.list_all())) == 0
+    assert len(run(first.catalog.list_projects())) == 1
+    assert len(run(second.catalog.list_projects())) == 0
 
 
 def run[T](coro: Coroutine[Any, Any, T]) -> T:
