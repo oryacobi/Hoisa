@@ -2,9 +2,10 @@
 
 from typing import ClassVar
 
+from antonic import AntDoc
 from pydantic import Field
 
-from hoisa.domain.models import CollectionRoot, HoisaModel
+from hoisa.domain.models import HoisaModel, RecordId
 from hoisa.domain.privacy import PublicSafetyClass, RedactionStatus
 from hoisa.domain.provenance import SourceProvenance
 from hoisa.domain.target_repos import ProjectRef, TargetRepoRef
@@ -19,11 +20,12 @@ class DirectiveConstraints(HoisaModel):
     required_checks: tuple[str, ...] = ()
 
 
-class Directive(CollectionRoot):
+class Directive(AntDoc):
     """Captured human direction before it becomes work items."""
 
     ant_collection: ClassVar[str] = "directives"
 
+    id: RecordId | None = None
     project: ProjectRef
     target_repo: TargetRepoRef | None = None
     summary: str = Field(min_length=1)

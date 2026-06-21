@@ -3,11 +3,11 @@
 from enum import StrEnum
 from typing import ClassVar
 
-from antonic import AntIndex
+from antonic import AntDoc, AntIndex
 from pydantic import Field
 
 from hoisa.domain.evidence import EvidenceRef
-from hoisa.domain.models import ASCENDING, CollectionRoot, UtcDatetime
+from hoisa.domain.models import ASCENDING, RecordId, UtcDatetime
 from hoisa.domain.privacy import PublicSafetyClass, RedactionStatus
 from hoisa.domain.provenance import SourceProvenance
 from hoisa.domain.target_repos import ProjectRef
@@ -50,11 +50,12 @@ class ToolInvocationStatus(StrEnum):
     SKIPPED = "skipped"
 
 
-class ToolConnection(CollectionRoot):
+class ToolConnection(AntDoc):
     """Current-state record for a configured tool integration."""
 
     ant_collection: ClassVar[str] = "tool_connections"
 
+    id: RecordId | None = None
     project: ProjectRef
     tool_type: str = Field(min_length=1)
     display_name: str = Field(min_length=1)
@@ -65,7 +66,7 @@ class ToolConnection(CollectionRoot):
     redaction_status: RedactionStatus
 
 
-class ToolPolicy(CollectionRoot):
+class ToolPolicy(AntDoc):
     """Policy record for a tool action type."""
 
     ant_collection: ClassVar[str] = "tool_policies"
@@ -81,6 +82,7 @@ class ToolPolicy(CollectionRoot):
         ),
     )
 
+    id: RecordId | None = None
     project: ProjectRef
     tool_type: str = Field(min_length=1)
     action_type: str = Field(min_length=1)
@@ -92,37 +94,39 @@ class ToolPolicy(CollectionRoot):
     redaction_status: RedactionStatus
 
 
-class ActionRequest(CollectionRoot):
+class ActionRequest(AntDoc):
     """Requested external action, recorded before execution authority exists."""
 
     ant_collection: ClassVar[str] = "action_requests"
 
+    id: RecordId | None = None
     project: ProjectRef
     tool_type: str = Field(min_length=1)
     action_type: str = Field(min_length=1)
     status: ActionRequestStatus
     summary: str = Field(min_length=1)
-    work_item_id: str | None = None
-    tool_connection_id: str | None = None
-    required_gate_id: str | None = None
+    work_item_id: RecordId | None = None
+    tool_connection_id: RecordId | None = None
+    required_gate_id: RecordId | None = None
     evidence_refs: tuple[EvidenceRef, ...] = ()
     source_provenance: SourceProvenance
     public_safety: PublicSafetyClass
     redaction_status: RedactionStatus
 
 
-class ToolInvocation(CollectionRoot):
+class ToolInvocation(AntDoc):
     """Audited result of a tool invocation attempt."""
 
     ant_collection: ClassVar[str] = "tool_invocations"
 
+    id: RecordId | None = None
     tool_type: str = Field(min_length=1)
     action_type: str = Field(min_length=1)
     status: ToolInvocationStatus
     happened_at: UtcDatetime
     summary: str = Field(min_length=1)
-    action_request_id: str | None = None
-    tool_connection_id: str | None = None
+    action_request_id: RecordId | None = None
+    tool_connection_id: RecordId | None = None
     evidence_refs: tuple[EvidenceRef, ...] = ()
     source_provenance: SourceProvenance
     public_safety: PublicSafetyClass

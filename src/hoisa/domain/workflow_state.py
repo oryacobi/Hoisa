@@ -2,9 +2,10 @@
 
 from typing import ClassVar
 
+from antonic import AntDoc
 from pydantic import Field
 
-from hoisa.domain.models import CollectionRoot, HoisaModel, UtcDatetime
+from hoisa.domain.models import HoisaModel, RecordId, UtcDatetime
 from hoisa.domain.privacy import PublicSafetyClass, RedactionStatus
 from hoisa.domain.provenance import SourceProvenance
 from hoisa.domain.workflow_vocabulary import (
@@ -56,12 +57,13 @@ class WorkflowState(HoisaModel):
     blockers: tuple[Blocker, ...] = ()
 
 
-class WorkflowStateRecord(CollectionRoot):
+class WorkflowStateRecord(AntDoc):
     """Persisted workflow-state snapshot keyed by work item."""
 
     ant_collection: ClassVar[str] = "workflow_states"
 
-    work_item_id: str = Field(min_length=1)
+    id: RecordId | None = None
+    work_item_id: RecordId
     state: WorkflowState
     source_provenance: SourceProvenance
     public_safety: PublicSafetyClass

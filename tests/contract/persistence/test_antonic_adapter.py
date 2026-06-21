@@ -6,10 +6,10 @@ import os
 from typing import Any
 from uuid import uuid4
 
-from antonic import AntConnector
+from bson import ObjectId
 import pytest
 
-from hoisa.adapters.persistence.antonic import AntonicPersistenceProvider
+from hoisa.adapters.persistence.antonic import HoisaAntConnector
 from hoisa.domain.evidence import EvidenceKind, EvidenceRef
 from hoisa.domain.gates import (
     ApprovalGate,
@@ -38,48 +38,54 @@ from hoisa.domain.workflow_state import (
     WorkflowStateRecord,
     WorkItemType,
 )
-from hoisa.ports.persistence import RepoLookup, RunnableWorkQuery, WaitingGateQuery
+from hoisa.ports.persistence import (
+    RepoLookup,
+    RunnableWorkQuery,
+    WaitingGateQuery,
+    repo_lookup_filter,
+)
 
 
-def test_antonic_provider_uses_configured_local_mongo_instance() -> None:
+def test_hoisa_ant_connector_uses_configured_local_mongo_instance() -> None:
     uri = os.environ.get("HOISA_MONGO_TEST_URI") or os.environ.get("MONGODB_URI")
     if uri is None:
         pytest.skip("Set HOISA_MONGO_TEST_URI or MONGODB_URI to run the Antonic Mongo contract.")
 
     database = os.environ.get("HOISA_MONGO_TEST_DATABASE") or f"hoisa_test_{uuid4().hex}"
-    run(_exercise_provider(uri, database))
+    run(_exercise_connector(uri, database))
 
 
-async def _exercise_provider(uri: str, database: str) -> None:
-    connector = AntConnector(uri, database=database)
-    provider = AntonicPersistenceProvider(connector)
+async def _exercise_connector(uri: str, database: str) -> None:
+    connector = HoisaAntConnector(uri, database=database)
 
     try:
-        await provider.ensure_indexes()
-        await provider.projects.save(_project())
-        await provider.target_repos.save(_target_repo())
-        await provider.work_items.save(_work_item("work-1", issue_number=9))
-        await provider.workflow_states.save(_state("work-1"))
-        await provider.gates.save(_gate("gate-1", work_item_id="work-1"))
+        await connector.ensure_indexes()
+        await connector.insert(_project())
+        await connector.insert(_target_repo())
+        await connector.insert(_work_item(WORK_ID, issue_number=9))
+        await connector.insert(_state(WORK_ID))
+        await connector.insert(_gate(GATE_ID, work_item_id=WORK_ID))
 
-        assert await provider.projects.get("project-sample") is not None
-        assert await provider.target_repos.get_by_provider(_repo_lookup()) is not None
-        assert await provider.work_items.find_by_tracker_issue(provider="github", issue_number=9)
+        assert await connector.get(Project, PROJECT_ID) is not None
+        assert (
+            await connector.get(TargetRepo, filter=repo_lookup_filter(_repo_lookup())) is not None
+        )
+        assert await connector.get(WorkItem, filter={"tracker_issue.issue_number": 9})
         assert [
             item.id
-            for item in await provider.work_items.find_runnable(
+            for item in await connector.find_runnable_work(
                 RunnableWorkQuery(workflow_stage=WorkflowStage.IMPLEMENTATION, now=_time(1))
             )
-        ] == ["work-1"]
+        ] == [WORK_ID]
         assert [
             gate.id
-            for gate in await provider.gates.list_waiting(WaitingGateQuery(tracker_issue_number=9))
-        ] == ["gate-1"]
+            for gate in await connector.list_waiting_gates(WaitingGateQuery(tracker_issue_number=9))
+        ] == [GATE_ID]
     finally:
         result = connector.client.drop_database(database)
         if inspect.isawaitable(result):
             await result
-        await provider.close()
+        await connector.close()
 
 
 def run[T](coro: Coroutine[Any, Any, T]) -> T:
@@ -88,7 +94,7 @@ def run[T](coro: Coroutine[Any, Any, T]) -> T:
 
 def _project() -> Project:
     return Project(
-        id="project-sample",
+        id=PROJECT_ID,
         name="Sample Project",
         summary="Public-safe sample project.",
         created_at=_time(),
@@ -101,7 +107,7 @@ def _project() -> Project:
 
 def _target_repo() -> TargetRepo:
     return TargetRepo(
-        id="repo-sample",
+        id=REPO_ID,
         provider=RepositoryProvider.GITHUB,
         owner="example-org",
         name="example-repo",
@@ -116,7 +122,7 @@ def _target_repo() -> TargetRepo:
     )
 
 
-def _work_item(work_item_id: str, *, issue_number: int) -> WorkItem:
+def _work_item(work_item_id: ObjectId, *, issue_number: int) -> WorkItem:
     return WorkItem(
         id=work_item_id,
         item_type=WorkItemType.TASK,
@@ -143,7 +149,7 @@ def _work_item(work_item_id: str, *, issue_number: int) -> WorkItem:
     )
 
 
-def _state(work_item_id: str) -> WorkflowStateRecord:
+def _state(work_item_id: ObjectId) -> WorkflowStateRecord:
     return WorkflowStateRecord(
         id=work_item_id,
         work_item_id=work_item_id,
@@ -161,7 +167,7 @@ def _state(work_item_id: str) -> WorkflowStateRecord:
     )
 
 
-def _gate(gate_id: str, *, work_item_id: str) -> ApprovalGate:
+def _gate(gate_id: ObjectId, *, work_item_id: ObjectId) -> ApprovalGate:
     return ApprovalGate(
         id=gate_id,
         gate_type=GateType.PLAN_APPROVAL,
@@ -188,12 +194,12 @@ def _time(minutes: int = 0) -> datetime:
 
 
 def _project_ref() -> ProjectRef:
-    return ProjectRef(project_id="project-sample", name="Sample Project")
+    return ProjectRef(project_id=PROJECT_ID, name="Sample Project")
 
 
 def _target_repo_ref() -> TargetRepoRef:
     return TargetRepoRef(
-        target_repo_id="repo-sample",
+        target_repo_id=REPO_ID,
         provider=RepositoryProvider.GITHUB,
         owner="example-org",
         name="example-repo",
@@ -229,3 +235,9 @@ def _provenance(source_system: SourceSystem = SourceSystem.HOISA) -> SourceProve
         source_url="https://github.com/example-org/example-repo/issues/9",
         public_safety=PublicSafetyClass.PUBLIC_SAFE_SAMPLE,
     )
+
+
+PROJECT_ID = ObjectId("650000000000000000000001")
+REPO_ID = ObjectId("650000000000000000000002")
+WORK_ID = ObjectId("650000000000000000000003")
+GATE_ID = ObjectId("650000000000000000000004")

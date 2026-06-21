@@ -399,9 +399,17 @@
       "$ref": "#/$defs/GateType"
     },
     "id": {
-      "minLength": 1,
-      "title": "Id",
-      "type": "string"
+      "anyOf": [
+        {
+          "pattern": "^[0-9a-fA-F]{24}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Id"
     },
     "options": {
       "items": {
@@ -422,12 +430,6 @@
     },
     "risk": {
       "$ref": "#/$defs/RiskLevel"
-    },
-    "schema_version": {
-      "default": 1,
-      "minimum": 1,
-      "title": "Schema Version",
-      "type": "integer"
     },
     "source_provenance": {
       "$ref": "#/$defs/SourceProvenance"
@@ -456,7 +458,7 @@
       "type": "string"
     },
     "work_item_id": {
-      "minLength": 1,
+      "pattern": "^[0-9a-fA-F]{24}$",
       "title": "Work Item Id",
       "type": "string"
     },
@@ -465,7 +467,6 @@
     }
   },
   "required": [
-    "id",
     "gate_type",
     "gate_status",
     "work_item_id",

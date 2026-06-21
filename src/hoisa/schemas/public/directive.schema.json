@@ -64,7 +64,7 @@
           "type": "string"
         },
         "project_id": {
-          "minLength": 1,
+          "pattern": "^[0-9a-fA-F]{24}$",
           "title": "Project Id",
           "type": "string"
         }
@@ -238,7 +238,7 @@
           "$ref": "#/$defs/RepositoryProvider"
         },
         "target_repo_id": {
-          "minLength": 1,
+          "pattern": "^[0-9a-fA-F]{24}$",
           "title": "Target Repo Id",
           "type": "string"
         },
@@ -283,9 +283,17 @@
       "title": "Created At"
     },
     "id": {
-      "minLength": 1,
-      "title": "Id",
-      "type": "string"
+      "anyOf": [
+        {
+          "pattern": "^[0-9a-fA-F]{24}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Id"
     },
     "project": {
       "$ref": "#/$defs/ProjectRef"
@@ -301,12 +309,6 @@
     },
     "risk": {
       "$ref": "#/$defs/RiskLevel"
-    },
-    "schema_version": {
-      "default": 1,
-      "minimum": 1,
-      "title": "Schema Version",
-      "type": "integer"
     },
     "source_provenance": {
       "$ref": "#/$defs/SourceProvenance"
@@ -347,7 +349,6 @@
     }
   },
   "required": [
-    "id",
     "project",
     "summary",
     "body",

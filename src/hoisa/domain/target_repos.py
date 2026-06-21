@@ -3,10 +3,10 @@
 from enum import StrEnum
 from typing import ClassVar
 
-from antonic import AntIndex
+from antonic import AntDoc, AntIndex
 from pydantic import Field
 
-from hoisa.domain.models import ASCENDING, CollectionRoot, HoisaModel
+from hoisa.domain.models import ASCENDING, HoisaModel, RecordId
 from hoisa.domain.privacy import PublicSafetyClass, RedactionStatus
 from hoisa.domain.provenance import SourceProvenance
 
@@ -29,15 +29,16 @@ class RepositoryVisibility(StrEnum):
 class ProjectRef(HoisaModel):
     """Stable reference to a Hoisa project."""
 
-    project_id: str = Field(min_length=1)
+    project_id: RecordId
     name: str = Field(min_length=1)
 
 
-class Project(CollectionRoot):
+class Project(AntDoc):
     """Current-state project record stored by persistence adapters."""
 
     ant_collection: ClassVar[str] = "projects"
 
+    id: RecordId | None = None
     name: str = Field(min_length=1)
     summary: str = Field(min_length=1)
     source_provenance: SourceProvenance
@@ -48,7 +49,7 @@ class Project(CollectionRoot):
 class TargetRepoRef(HoisaModel):
     """Generic repository reference without local paths or access details."""
 
-    target_repo_id: str = Field(min_length=1)
+    target_repo_id: RecordId
     provider: RepositoryProvider
     owner: str = Field(min_length=1)
     name: str = Field(min_length=1)
@@ -56,7 +57,7 @@ class TargetRepoRef(HoisaModel):
     project: ProjectRef
 
 
-class TargetRepo(CollectionRoot):
+class TargetRepo(AntDoc):
     """Current-state target repository record without local paths or secrets."""
 
     ant_collection: ClassVar[str] = "target_repos"
@@ -68,6 +69,7 @@ class TargetRepo(CollectionRoot):
         ),
     )
 
+    id: RecordId | None = None
     provider: RepositoryProvider
     owner: str = Field(min_length=1)
     name: str = Field(min_length=1)

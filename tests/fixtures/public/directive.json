@@ -1,20 +1,19 @@
 {
-  "id": "directive_sample_models",
+  "id": "650000000000000000000003",
   "created_at": "2026-05-25T12:00:00Z",
   "updated_at": "2026-05-25T12:05:00Z",
-  "schema_version": 1,
   "project": {
-    "project_id": "project_sample",
+    "project_id": "650000000000000000000001",
     "name": "Hoisa Sample"
   },
   "target_repo": {
-    "target_repo_id": "repo_sample",
+    "target_repo_id": "650000000000000000000002",
     "provider": "github",
     "owner": "example-org",
     "name": "example-repo",
     "visibility": "public",
     "project": {
-      "project_id": "project_sample",
+      "project_id": "650000000000000000000001",
       "name": "Hoisa Sample"
     }
   },

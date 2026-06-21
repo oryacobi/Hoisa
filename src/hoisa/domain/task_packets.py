@@ -2,10 +2,11 @@
 
 from typing import ClassVar
 
+from antonic import AntDoc
 from pydantic import Field
 
 from hoisa.domain.evidence import EvidenceRef, EvidenceRequirement
-from hoisa.domain.models import CollectionRoot, HoisaModel
+from hoisa.domain.models import HoisaModel, RecordId
 from hoisa.domain.privacy import PublicSafetyClass, RedactionStatus
 from hoisa.domain.provenance import SourceProvenance
 from hoisa.domain.runs import RunBudget, RunnerProfile
@@ -21,12 +22,13 @@ class AllowedAction(HoisaModel):
     requires_gate: bool = False
 
 
-class TaskPacket(CollectionRoot):
+class TaskPacket(AntDoc):
     """Bounded context and authority for one agent run."""
 
     ant_collection: ClassVar[str] = "task_packets"
 
-    work_item_id: str = Field(min_length=1)
+    id: RecordId | None = None
+    work_item_id: RecordId
     workflow_stage: WorkflowStage
     target_repo: TargetRepoRef
     objective: str = Field(min_length=1)

@@ -1,5 +1,5 @@
 {
-  "id": "event_gate_decided_sample",
+  "id": "650000000000000000000007",
   "event_type": "gate.decided",
   "happened_at": "2026-05-25T13:10:00Z",
   "actor": {
@@ -9,16 +9,16 @@
   },
   "subject": {
     "subject_type": "approval_gate",
-    "subject_id": "gate_plan_sample"
+    "subject_id": "650000000000000000000005"
   },
   "correlation_id": "corr-sample-models",
-  "causation_id": "event_gate_created_sample",
+  "causation_id": "650000000000000000000006",
   "workflow_stage": "Plan Approval",
   "risk": "high",
   "public_safety": "public_safe_sample",
   "payload_schema": "gate_decision.v1",
   "payload": {
-    "gate_id": "gate_plan_sample",
+    "gate_id": "650000000000000000000005",
     "decision": "approve"
   },
   "evidence_refs": [
@@ -42,6 +42,5 @@
     "content_hash": null,
     "public_safety": "public_safe_sample"
   },
-  "redaction_status": "not_required",
-  "schema_version": 1
+  "redaction_status": "not_required"
 }

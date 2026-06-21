@@ -3,11 +3,12 @@
 from enum import StrEnum
 from typing import ClassVar
 
+from antonic import AntDoc
 from pydantic import Field
 
 from hoisa.domain.actors import ActorRef
 from hoisa.domain.evidence import EvidenceRef
-from hoisa.domain.models import CollectionRoot, HoisaModel, UtcDatetime
+from hoisa.domain.models import HoisaModel, RecordId, UtcDatetime
 from hoisa.domain.privacy import PublicSafetyClass, RedactionStatus
 from hoisa.domain.provenance import SourceProvenance
 from hoisa.domain.workflow_state import RiskLevel, WorkflowStage
@@ -61,14 +62,15 @@ class GateDecision(HoisaModel):
     source_provenance: SourceProvenance
 
 
-class ApprovalGate(CollectionRoot):
+class ApprovalGate(AntDoc):
     """Structured human approval object with exact authority boundaries."""
 
     ant_collection: ClassVar[str] = "approval_gates"
 
+    id: RecordId | None = None
     gate_type: GateType
     gate_status: GateStatus
-    work_item_id: str = Field(min_length=1)
+    work_item_id: RecordId
     workflow_stage: WorkflowStage
     risk: RiskLevel
     recommendation: GateRecommendation

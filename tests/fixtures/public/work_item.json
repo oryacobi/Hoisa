@@ -1,19 +1,18 @@
 {
-  "id": "work_item_sample_models",
+  "id": "650000000000000000000004",
   "created_at": "2026-05-25T12:10:00Z",
   "updated_at": "2026-05-25T12:15:00Z",
-  "schema_version": 1,
   "item_type": "task",
   "title": "Define core workflow records",
   "goal": "Create public-safe Pydantic records for Hoisa orchestration.",
   "target_repo": {
-    "target_repo_id": "repo_sample",
+    "target_repo_id": "650000000000000000000002",
     "provider": "github",
     "owner": "example-org",
     "name": "example-repo",
     "visibility": "public",
     "project": {
-      "project_id": "project_sample",
+      "project_id": "650000000000000000000001",
       "name": "Hoisa Sample"
     }
   },

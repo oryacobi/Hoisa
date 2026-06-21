@@ -1,5 +1,7 @@
 from datetime import UTC, datetime, timedelta
+from typing import Any, cast
 
+from bson import ObjectId
 from pydantic import ValidationError
 import pytest
 
@@ -42,7 +44,7 @@ from hoisa.domain.workflow_state import (
 
 def test_persistence_collection_roots_carry_versioned_public_safe_metadata() -> None:
     project = Project(
-        id="project-sample",
+        id=PROJECT_ID,
         name="Sample Project",
         summary="Public-safe sample project.",
         created_at=_time(),
@@ -52,7 +54,7 @@ def test_persistence_collection_roots_carry_versioned_public_safe_metadata() -> 
         redaction_status=RedactionStatus.NOT_REQUIRED,
     )
     target_repo = TargetRepo(
-        id="repo-sample",
+        id=REPO_ID,
         provider=RepositoryProvider.GITHUB,
         owner="example-org",
         name="example-repo",
@@ -66,14 +68,14 @@ def test_persistence_collection_roots_carry_versioned_public_safe_metadata() -> 
         redaction_status=RedactionStatus.NOT_REQUIRED,
     )
 
-    assert project.schema_version == 1
-    assert target_repo.schema_version == 1
+    assert project.id == PROJECT_ID
+    assert target_repo.project.project_id == PROJECT_ID
     assert target_repo.default_branch == "main"
 
 
 def test_source_records_store_summaries_cursors_and_hash_identity() -> None:
     connection = SourceConnection(
-        id="source-github",
+        id=SOURCE_ID,
         project=_project_ref(),
         source_system=SourceSystem.GITHUB,
         display_name="Example GitHub",
@@ -85,9 +87,11 @@ def test_source_records_store_summaries_cursors_and_hash_identity() -> None:
         public_safety=PublicSafetyClass.PUBLIC_SAFE_SAMPLE,
         redaction_status=RedactionStatus.NOT_REQUIRED,
     )
+    connection_id = connection.id
+    assert isinstance(connection_id, ObjectId)
     observation = SourceObservation(
-        id="observation-1",
-        source_connection_id=connection.id,
+        id=OBSERVATION_ID,
+        source_connection_id=connection_id,
         external_id="issue-9",
         content_hash=_hash(),
         summary="Issue metadata summary.",
@@ -100,8 +104,8 @@ def test_source_records_store_summaries_cursors_and_hash_identity() -> None:
         redaction_status=RedactionStatus.NOT_REQUIRED,
     )
     cursor = SyncCursor(
-        id="cursor-1",
-        source_connection_id=connection.id,
+        id=CURSOR_ID,
+        source_connection_id=connection_id,
         cursor_name="issues",
         cursor_value="2026-05-25T12:00:00Z",
         created_at=_time(),
@@ -119,8 +123,8 @@ def test_source_records_store_summaries_cursors_and_hash_identity() -> None:
 def test_source_records_reject_missing_required_identity() -> None:
     with pytest.raises(ValidationError):
         SourceObservation(
-            id="",
-            source_connection_id="source-github",
+            id=cast(Any, ""),
+            source_connection_id=cast(Any, "source-github"),
             external_id="issue-9",
             content_hash=_hash(),
             summary="Issue metadata summary.",
@@ -135,8 +139,8 @@ def test_source_records_reject_missing_required_identity() -> None:
 
 def test_workflow_state_and_tool_control_records_do_not_authorize_actions() -> None:
     state = WorkflowStateRecord(
-        id="work-1",
-        work_item_id="work-1",
+        id=WORK_ID,
+        work_item_id=WORK_ID,
         state=WorkflowState(
             stage=WorkflowStage.IMPLEMENTATION,
             status=QueueStatus.IN_PROGRESS,
@@ -155,7 +159,7 @@ def test_workflow_state_and_tool_control_records_do_not_authorize_actions() -> N
         redaction_status=RedactionStatus.NOT_REQUIRED,
     )
     connection = ToolConnection(
-        id="tool-github",
+        id=TOOL_CONNECTION_ID,
         project=_project_ref(),
         tool_type="github",
         display_name="GitHub",
@@ -168,7 +172,7 @@ def test_workflow_state_and_tool_control_records_do_not_authorize_actions() -> N
         redaction_status=RedactionStatus.NOT_REQUIRED,
     )
     policy = ToolPolicy(
-        id="policy-1",
+        id=POLICY_ID,
         project=_project_ref(),
         tool_type="github",
         action_type="create_pull_request",
@@ -182,13 +186,13 @@ def test_workflow_state_and_tool_control_records_do_not_authorize_actions() -> N
         redaction_status=RedactionStatus.NOT_REQUIRED,
     )
     request = ActionRequest(
-        id="action-1",
+        id=ACTION_ID,
         project=_project_ref(),
         tool_type="github",
         action_type="create_pull_request",
         status=ActionRequestStatus.GATED,
         summary="Request to open a PR.",
-        required_gate_id="gate-1",
+        required_gate_id=GATE_ID,
         created_at=_time(),
         updated_at=_time(),
         source_provenance=_provenance(),
@@ -196,7 +200,7 @@ def test_workflow_state_and_tool_control_records_do_not_authorize_actions() -> N
         redaction_status=RedactionStatus.NOT_REQUIRED,
     )
     invocation = ToolInvocation(
-        id="invocation-1",
+        id=INVOCATION_ID,
         tool_type="github",
         action_type="create_pull_request",
         status=ToolInvocationStatus.SKIPPED,
@@ -222,12 +226,12 @@ def _time(minutes: int = 0) -> datetime:
 
 
 def _project_ref() -> ProjectRef:
-    return ProjectRef(project_id="project-sample", name="Sample Project")
+    return ProjectRef(project_id=PROJECT_ID, name="Sample Project")
 
 
 def _target_repo_ref() -> TargetRepoRef:
     return TargetRepoRef(
-        target_repo_id="repo-sample",
+        target_repo_id=REPO_ID,
         provider=RepositoryProvider.GITHUB,
         owner="example-org",
         name="example-repo",
@@ -248,3 +252,16 @@ def _provenance(source_system: SourceSystem = SourceSystem.HOISA) -> SourceProve
 
 def _hash() -> ContentHash:
     return ContentHash(algorithm="sha256", value="abc123")
+
+
+PROJECT_ID = ObjectId("650000000000000000000001")
+REPO_ID = ObjectId("650000000000000000000002")
+SOURCE_ID = ObjectId("650000000000000000000003")
+OBSERVATION_ID = ObjectId("650000000000000000000004")
+CURSOR_ID = ObjectId("650000000000000000000005")
+WORK_ID = ObjectId("650000000000000000000006")
+TOOL_CONNECTION_ID = ObjectId("650000000000000000000007")
+POLICY_ID = ObjectId("650000000000000000000008")
+ACTION_ID = ObjectId("650000000000000000000009")
+INVOCATION_ID = ObjectId("65000000000000000000000a")
+GATE_ID = ObjectId("65000000000000000000000b")

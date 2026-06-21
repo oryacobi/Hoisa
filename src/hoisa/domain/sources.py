@@ -3,10 +3,10 @@
 from enum import StrEnum
 from typing import ClassVar
 
-from antonic import AntIndex
+from antonic import AntDoc, AntIndex
 from pydantic import Field
 
-from hoisa.domain.models import ASCENDING, CollectionRoot
+from hoisa.domain.models import ASCENDING, RecordId
 from hoisa.domain.privacy import PublicSafetyClass, RedactionStatus
 from hoisa.domain.provenance import ContentHash, SourceProvenance, SourceSystem
 from hoisa.domain.target_repos import ProjectRef, TargetRepoRef
@@ -22,11 +22,12 @@ class SourceConnectionStatus(StrEnum):
     ARCHIVED = "archived"
 
 
-class SourceConnection(CollectionRoot):
+class SourceConnection(AntDoc):
     """Configured source Hoisa observes before reducing records."""
 
     ant_collection: ClassVar[str] = "source_connections"
 
+    id: RecordId | None = None
     project: ProjectRef
     source_system: SourceSystem
     display_name: str = Field(min_length=1)
@@ -37,7 +38,7 @@ class SourceConnection(CollectionRoot):
     redaction_status: RedactionStatus
 
 
-class SourceObservation(CollectionRoot):
+class SourceObservation(AntDoc):
     """Public-safe summary of an external source observation."""
 
     ant_collection: ClassVar[str] = "source_observations"
@@ -53,7 +54,8 @@ class SourceObservation(CollectionRoot):
         ),
     )
 
-    source_connection_id: str = Field(min_length=1)
+    id: RecordId | None = None
+    source_connection_id: RecordId
     external_id: str = Field(min_length=1)
     content_hash: ContentHash
     summary: str = Field(min_length=1)
@@ -64,7 +66,7 @@ class SourceObservation(CollectionRoot):
     redaction_status: RedactionStatus
 
 
-class SyncCursor(CollectionRoot):
+class SyncCursor(AntDoc):
     """Cursor for deterministic incremental source observation."""
 
     ant_collection: ClassVar[str] = "sync_cursors"
@@ -76,7 +78,8 @@ class SyncCursor(CollectionRoot):
         ),
     )
 
-    source_connection_id: str = Field(min_length=1)
+    id: RecordId | None = None
+    source_connection_id: RecordId
     cursor_name: str = Field(min_length=1)
     cursor_value: str = Field(min_length=1)
     source_provenance: SourceProvenance

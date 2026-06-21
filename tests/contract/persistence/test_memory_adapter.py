@@ -3,9 +3,10 @@ from collections.abc import Coroutine
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from bson import ObjectId
 import pytest
 
-from hoisa.adapters.persistence.memory import InMemoryPersistenceProvider
+from hoisa.adapters.persistence.memory import InMemoryStore
 from hoisa.domain.actors import ActorRef, ActorType
 from hoisa.domain.events import EventSubject, WorkflowEvent
 from hoisa.domain.evidence import EvidenceBundle, EvidenceKind, EvidenceRef
@@ -59,175 +60,217 @@ from hoisa.domain.workflow_state import (
 from hoisa.ports.persistence import (
     DuplicateRecordError,
     LeaseLookupQuery,
+    PersistenceConflictError,
     RepoLookup,
     RunnableWorkQuery,
     SourceObservationQuery,
     SyncCursorKey,
     ToolActionQuery,
     WaitingGateQuery,
+    repo_lookup_filter,
+    source_observation_filter,
+    sync_cursor_filter,
 )
 
 
-def test_repositories_save_and_fetch_current_state_records() -> None:
-    provider = InMemoryPersistenceProvider()
-    run(provider.projects.save(_project()))
-    run(provider.target_repos.save(_target_repo()))
-    run(provider.source_connections.save(_source_connection()))
-    run(provider.source_observations.save(_source_observation()))
-    run(provider.sync_cursors.save(_sync_cursor()))
-    run(provider.work_items.save(_work_item("work-1", issue_number=9)))
-    run(provider.workflow_states.save(_state("work-1")))
-    run(provider.gates.save(_gate("gate-1", work_item_id="work-1")))
-    run(provider.agent_runs.save(_agent_run("run-1", work_item_id="work-1")))
-    run(provider.evidence_bundles.save(_evidence_bundle("bundle-1", subject_id="work-1")))
-    run(provider.tool_connections.save(_tool_connection()))
-    run(provider.tool_policies.save(_tool_policy()))
-    run(provider.action_requests.save(_action_request()))
-    run(provider.tool_invocations.save(_tool_invocation()))
-    run(provider.workflow_events.append(_event("event-1", _time(2))))
+def test_generic_store_inserts_object_ids_and_finds_records() -> None:
+    store = InMemoryStore()
+    project = run(store.insert(_project(None)))
+    project_id = _stored_id(project)
+    repo = run(store.insert(_target_repo(_id(2), project_id=project_id)))
+    repo_id = _stored_id(repo)
+    source = run(store.insert(_source_connection(_id(3), project_id=project_id, repo_id=repo_id)))
+    source_id = _stored_id(source)
+    run(store.insert(_source_observation(_id(4), source_id=source_id)))
+    cursor = run(store.insert(_sync_cursor(_id(5), source_id=source_id)))
+    work = run(store.insert(_work_item(_id(6), project_id=project_id, repo_id=repo_id)))
+    work_id = _stored_id(work)
+    run(store.insert(_state(work_id)))
+    gate = run(store.insert(_gate(_id(7), work_item_id=work_id)))
+    gate_id = _stored_id(gate)
+    run(store.insert(_agent_run(_id(8), work_item_id=work_id)))
+    run(store.insert(_evidence_bundle(_id(9), subject_id=work_id)))
+    run(store.insert(_tool_connection(_id(10), project_id=project_id)))
+    run(store.insert(_tool_policy(_id(11), project_id=project_id)))
+    action = run(store.insert(_action_request(_id(12), project_id=project_id, gate_id=gate_id)))
+    action_id = _stored_id(action)
+    run(store.insert(_tool_invocation(_id(13), action_request_id=action_id)))
+    event = run(store.append_event(_event(_id(14), _time(2), subject_id=work_id)))
 
-    assert run(provider.projects.get("project-sample")) is not None
-    assert run(provider.target_repos.get("repo-sample")) is not None
-    assert run(provider.target_repos.get_by_provider(_repo_lookup())) is not None
-    assert len(run(provider.target_repos.list_by_project("project-sample"))) == 1
-    assert run(provider.source_connections.get("source-github")) is not None
-    assert len(run(provider.source_observations.find_by_source(_observation_query()))) == 1
-    assert run(provider.sync_cursors.get(_cursor_key())) is not None
-    assert run(provider.work_items.find_by_tracker_issue(provider="github", issue_number=9))
-    assert run(provider.workflow_states.get("work-1")) is not None
-    assert len(run(provider.gates.list_by_work_item("work-1"))) == 1
-    assert len(run(provider.agent_runs.list_by_work_item("work-1"))) == 1
-    assert (
-        len(
-            run(
-                provider.evidence_bundles.list_by_subject(
-                    subject_type="work_item",
-                    subject_id="work-1",
-                )
-            )
+    assert isinstance(project.id, ObjectId)
+    assert project.version == 1
+    assert run(store.get(Project, project_id)) == project
+    assert run(store.get(TargetRepo, filter=repo_lookup_filter(_repo_lookup()))) == repo
+    assert run(
+        store.get(
+            SourceObservation, filter=source_observation_filter(_observation_query(source_id))
         )
-        == 1
     )
-    assert len(run(provider.tool_connections.list_by_project("project-sample"))) == 1
-    assert len(run(provider.tool_policies.find_for_action(_tool_query()))) == 1
-    assert len(run(provider.action_requests.list_by_status(ActionRequestStatus.GATED))) == 1
-    assert len(run(provider.action_requests.list_for_gate("gate-1"))) == 1
-    assert len(run(provider.tool_invocations.list_for_action_request("action-1"))) == 1
-    assert len(run(provider.tool_invocations.list_by_tool_action(_tool_query()))) == 1
-    assert run(provider.workflow_events.get("event-1")) is not None
+    assert run(store.get(SyncCursor, filter=sync_cursor_filter(_cursor_key(source_id)))) == cursor
+    assert run(store.get(WorkItem, filter={"tracker_issue.issue_number": 9})) == work
+    assert len(run(store.find(TargetRepo, {"project.project_id": project_id}))) == 1
+    assert len(run(store.list_tool_policies_for_action(_tool_query(project_id)))) == 1
+    assert len(run(store.list_tool_invocations_by_action(_tool_query(project_id)))) == 1
+    assert run(store.get(WorkflowEvent, event.id)) == event
 
 
-def test_unique_keys_are_rejected_deterministically() -> None:
-    provider = InMemoryPersistenceProvider()
-    run(provider.target_repos.save(_target_repo("repo-1")))
-    run(provider.source_observations.save(_source_observation("observation-1")))
-    run(provider.sync_cursors.save(_sync_cursor("cursor-1")))
-    run(provider.work_items.save(_work_item("work-1", issue_number=9)))
-    run(provider.tool_policies.save(_tool_policy("policy-1")))
-    run(provider.workflow_events.append(_event("event-1", _time())))
+def test_unique_indexes_and_append_only_events_are_rejected() -> None:
+    store = InMemoryStore()
+    project = run(store.insert(_project(_id(1))))
+    project_id = _stored_id(project)
+    repo = run(store.insert(_target_repo(_id(2), project_id=project_id)))
+    repo_id = _stored_id(repo)
+    source = run(store.insert(_source_connection(_id(3), project_id=project_id, repo_id=repo_id)))
+    source_id = _stored_id(source)
+    run(store.insert(_source_observation(_id(4), source_id=source_id)))
+    run(store.insert(_sync_cursor(_id(5), source_id=source_id)))
+    run(store.insert(_work_item(_id(6), project_id=project_id, repo_id=repo_id)))
+    run(store.insert(_tool_policy(_id(7), project_id=project_id)))
+    run(store.append_event(_event(_id(8), _time(), subject_id=_id(6))))
 
-    with pytest.raises(DuplicateRecordError, match="target repository"):
-        run(provider.target_repos.save(_target_repo("repo-2")))
-    with pytest.raises(DuplicateRecordError, match="source observation"):
-        run(provider.source_observations.save(_source_observation("observation-2")))
-    with pytest.raises(DuplicateRecordError, match="sync cursor"):
-        run(provider.sync_cursors.save(_sync_cursor("cursor-2")))
-    with pytest.raises(DuplicateRecordError, match="tracker issue"):
-        run(provider.work_items.save(_work_item("work-2", issue_number=9)))
-    with pytest.raises(DuplicateRecordError, match="tool policy"):
-        run(provider.tool_policies.save(_tool_policy("policy-2")))
+    with pytest.raises(DuplicateRecordError, match="target_repo"):
+        run(store.insert(_target_repo(_id(20), project_id=project_id)))
+    with pytest.raises(DuplicateRecordError, match="source_observation"):
+        run(store.insert(_source_observation(_id(21), source_id=source_id)))
+    with pytest.raises(DuplicateRecordError, match="sync_cursor"):
+        run(store.insert(_sync_cursor(_id(22), source_id=source_id)))
+    with pytest.raises(DuplicateRecordError, match="work_item_tracker"):
+        run(store.insert(_work_item(_id(23), project_id=project_id, repo_id=repo_id)))
+    with pytest.raises(DuplicateRecordError, match="tool_policy"):
+        run(store.insert(_tool_policy(_id(24), project_id=project_id)))
     with pytest.raises(DuplicateRecordError, match="Workflow event"):
-        run(provider.workflow_events.append(_event("event-1", _time(1))))
+        run(store.append_event(_event(_id(8), _time(1), subject_id=_id(6))))
+
+
+def test_save_uses_optimistic_versions() -> None:
+    store = InMemoryStore()
+    project = run(store.insert(_project(_id(1))))
+    project_id = _stored_id(project)
+
+    updated = run(store.save(project.model_copy(update={"summary": "Updated summary."})))
+    saved_project = run(store.get(Project, project_id))
+
+    assert updated.version == 2
+    assert saved_project is not None
+    assert saved_project.summary == "Updated summary."
+    with pytest.raises(PersistenceConflictError):
+        run(store.save(project.model_copy(update={"summary": "Stale update."})))
 
 
 def test_runnable_gate_and_lease_queries_are_intention_revealing() -> None:
-    provider = InMemoryPersistenceProvider()
+    store = InMemoryStore()
+    project = run(store.insert(_project(_id(1))))
+    project_id = _stored_id(project)
+    repo = run(store.insert(_target_repo(_id(2), project_id=project_id)))
+    repo_id = _stored_id(repo)
     now = _time(10)
-    run(provider.work_items.save(_work_item("eligible", issue_number=1)))
-    run(provider.work_items.save(_work_item("active", issue_number=2)))
-    run(provider.work_items.save(_work_item("expired", issue_number=3)))
-    run(provider.work_items.save(_work_item("blocked", issue_number=4)))
-    run(provider.workflow_states.save(_state("eligible")))
+
+    eligible = run(
+        store.insert(_work_item(_id(3), project_id=project_id, repo_id=repo_id, issue_number=1))
+    )
+    active = run(
+        store.insert(_work_item(_id(4), project_id=project_id, repo_id=repo_id, issue_number=2))
+    )
+    expired = run(
+        store.insert(_work_item(_id(5), project_id=project_id, repo_id=repo_id, issue_number=3))
+    )
+    blocked = run(
+        store.insert(_work_item(_id(6), project_id=project_id, repo_id=repo_id, issue_number=4))
+    )
+    eligible_id = _stored_id(eligible)
+    active_id = _stored_id(active)
+    expired_id = _stored_id(expired)
+    blocked_id = _stored_id(blocked)
+    run(store.insert(_state(eligible_id)))
     run(
-        provider.workflow_states.save(
+        store.insert(
             _state(
-                "active",
+                active_id,
                 lease=Lease(worker_id="Codex-1", claimed_at=_time(), expires_at=_time(20)),
             )
         )
     )
     run(
-        provider.workflow_states.save(
+        store.insert(
             _state(
-                "expired",
+                expired_id,
                 lease=Lease(worker_id="Codex-2", claimed_at=_time(), expires_at=_time(5)),
             )
         )
     )
     run(
-        provider.workflow_states.save(
+        store.insert(
             _state(
-                "blocked",
+                blocked_id,
                 blockers=(Blocker(blocker_id="blocker-1", summary="Waiting.", created_at=_time()),),
             )
         )
     )
-    run(provider.gates.save(_gate("gate-1", work_item_id="eligible")))
+    run(store.insert(_gate(_id(7), work_item_id=eligible_id)))
 
     runnable = run(
-        provider.work_items.find_runnable(
+        store.find_runnable_work(
             RunnableWorkQuery(workflow_stage=WorkflowStage.IMPLEMENTATION, now=now)
         )
     )
-    active = run(provider.workflow_states.list_active_leases(LeaseLookupQuery(now=now)))
-    expired = run(provider.workflow_states.list_expired_leases(LeaseLookupQuery(now=now)))
-    waiting = run(provider.gates.list_waiting(WaitingGateQuery(tracker_issue_number=1)))
+    active_leases = run(store.list_active_leases(LeaseLookupQuery(now=now)))
+    expired_leases = run(store.list_expired_leases(LeaseLookupQuery(now=now)))
+    waiting = run(store.list_waiting_gates(WaitingGateQuery(tracker_issue_number=1)))
 
-    assert [item.id for item in runnable] == ["eligible", "expired"]
-    assert [record.work_item_id for record in active] == ["active"]
-    assert [record.work_item_id for record in expired] == ["expired"]
-    assert [gate.id for gate in waiting] == ["gate-1"]
+    assert [item.id for item in runnable] == [eligible_id, expired_id]
+    assert [record.work_item_id for record in active_leases] == [active_id]
+    assert [record.work_item_id for record in expired_leases] == [expired_id]
+    assert [gate.work_item_id for gate in waiting] == [eligible_id]
 
 
 def test_events_are_append_only_and_query_order_is_deterministic() -> None:
-    provider = InMemoryPersistenceProvider()
-    subject = EventSubject(subject_type="work_item", subject_id="work-1")
-    run(provider.workflow_events.append(_event("event-2", _time(2), subject=subject)))
-    run(provider.workflow_events.append(_event("event-1", _time(1), subject=subject)))
+    store = InMemoryStore()
+    subject = EventSubject(subject_type="work_item", subject_id=_id(1))
+    run(store.append_event(_event(_id(2), _time(2), subject=subject)))
+    run(store.append_event(_event(_id(1), _time(1), subject=subject)))
     run(
-        provider.workflow_events.append(
+        store.append_event(
             _event(
-                "event-3",
+                _id(3),
                 _time(3),
-                subject=EventSubject(subject_type="work_item", subject_id="work-2"),
+                subject=EventSubject(subject_type="work_item", subject_id=_id(4)),
                 correlation_id="other",
             )
         )
     )
 
-    by_subject = run(provider.workflow_events.list_for_subject(subject))
-    by_correlation = run(provider.workflow_events.list_for_correlation("corr-1"))
-    recent = run(provider.workflow_events.list_recent(limit=2))
+    by_subject = run(store.list_events_for_subject(subject))
+    by_correlation = run(store.list_events_for_correlation("corr-1"))
+    recent = run(store.list_recent_events(limit=2))
 
-    assert [event.id for event in by_subject] == ["event-1", "event-2"]
-    assert [event.id for event in by_correlation] == ["event-1", "event-2"]
-    assert [event.id for event in recent] == ["event-2", "event-3"]
+    assert [event.id for event in by_subject] == [_id(1), _id(2)]
+    assert [event.id for event in by_correlation] == [_id(1), _id(2)]
+    assert [event.id for event in recent] == [_id(2), _id(3)]
 
 
-def test_provider_instances_do_not_share_state() -> None:
-    first = InMemoryPersistenceProvider()
-    second = InMemoryPersistenceProvider()
-    run(first.projects.save(_project()))
+def test_store_instances_do_not_share_state() -> None:
+    first = InMemoryStore()
+    second = InMemoryStore()
+    run(first.insert(_project(_id(1))))
 
-    assert len(run(first.projects.list_all())) == 1
-    assert len(run(second.projects.list_all())) == 0
+    assert len(run(first.find(Project))) == 1
+    assert len(run(second.find(Project))) == 0
 
 
 def run[T](coro: Coroutine[Any, Any, T]) -> T:
     return asyncio.run(coro)
 
 
-def _project(project_id: str = "project-sample") -> Project:
+def _stored_id(record: Any) -> ObjectId:
+    assert isinstance(record.id, ObjectId)
+    return record.id
+
+
+def _id(number: int) -> ObjectId:
+    return ObjectId(f"650000000000000000{number:06x}")
+
+
+def _project(project_id: ObjectId | None = None) -> Project:
     return Project(
         id=project_id,
         name="Sample Project",
@@ -240,14 +283,14 @@ def _project(project_id: str = "project-sample") -> Project:
     )
 
 
-def _target_repo(target_repo_id: str = "repo-sample") -> TargetRepo:
+def _target_repo(target_repo_id: ObjectId, *, project_id: ObjectId) -> TargetRepo:
     return TargetRepo(
         id=target_repo_id,
         provider=RepositoryProvider.GITHUB,
         owner="example-org",
         name="example-repo",
         visibility=RepositoryVisibility.PUBLIC,
-        project=_project_ref(),
+        project=_project_ref(project_id),
         default_branch="main",
         created_at=_time(),
         updated_at=_time(),
@@ -257,14 +300,16 @@ def _target_repo(target_repo_id: str = "repo-sample") -> TargetRepo:
     )
 
 
-def _source_connection() -> SourceConnection:
+def _source_connection(
+    source_connection_id: ObjectId, *, project_id: ObjectId, repo_id: ObjectId
+) -> SourceConnection:
     return SourceConnection(
-        id="source-github",
-        project=_project_ref(),
+        id=source_connection_id,
+        project=_project_ref(project_id),
         source_system=SourceSystem.GITHUB,
         display_name="Example GitHub",
         status=SourceConnectionStatus.ACTIVE,
-        target_repo=_target_repo_ref(),
+        target_repo=_target_repo_ref(project_id=project_id, repo_id=repo_id),
         created_at=_time(),
         updated_at=_time(),
         source_provenance=_provenance(source_system=SourceSystem.GITHUB),
@@ -273,15 +318,15 @@ def _source_connection() -> SourceConnection:
     )
 
 
-def _source_observation(observation_id: str = "observation-1") -> SourceObservation:
+def _source_observation(observation_id: ObjectId, *, source_id: ObjectId) -> SourceObservation:
     return SourceObservation(
         id=observation_id,
-        source_connection_id="source-github",
+        source_connection_id=source_id,
         external_id="issue-9",
         content_hash=_hash(),
         summary="Issue metadata summary.",
         payload_schema="github_issue_summary.v1",
-        payload={"issue_number": 9},
+        payload={"issue_number": 9, "state": "open"},
         created_at=_time(),
         updated_at=_time(),
         source_provenance=_provenance(source_system=SourceSystem.GITHUB),
@@ -290,12 +335,12 @@ def _source_observation(observation_id: str = "observation-1") -> SourceObservat
     )
 
 
-def _sync_cursor(cursor_id: str = "cursor-1") -> SyncCursor:
+def _sync_cursor(cursor_id: ObjectId, *, source_id: ObjectId) -> SyncCursor:
     return SyncCursor(
         id=cursor_id,
-        source_connection_id="source-github",
+        source_connection_id=source_id,
         cursor_name="issues",
-        cursor_value="cursor-value",
+        cursor_value="2026-05-25T12:00:00Z",
         created_at=_time(),
         updated_at=_time(),
         source_provenance=_provenance(source_system=SourceSystem.GITHUB),
@@ -304,13 +349,19 @@ def _sync_cursor(cursor_id: str = "cursor-1") -> SyncCursor:
     )
 
 
-def _work_item(work_item_id: str, *, issue_number: int) -> WorkItem:
+def _work_item(
+    work_item_id: ObjectId,
+    *,
+    project_id: ObjectId,
+    repo_id: ObjectId,
+    issue_number: int = 9,
+) -> WorkItem:
     return WorkItem(
         id=work_item_id,
         item_type=WorkItemType.TASK,
         title=f"Issue {issue_number}",
         goal="Implement a public-safe sample task.",
-        target_repo=_target_repo_ref(),
+        target_repo=_target_repo_ref(project_id=project_id, repo_id=repo_id),
         tracker_issue=TrackerIssueRef(
             tracker_issue_id=f"issue-{issue_number}",
             provider="github",
@@ -332,7 +383,7 @@ def _work_item(work_item_id: str, *, issue_number: int) -> WorkItem:
 
 
 def _state(
-    work_item_id: str,
+    work_item_id: ObjectId,
     *,
     lease: Lease | None = None,
     blockers: tuple[Blocker, ...] = (),
@@ -356,7 +407,7 @@ def _state(
     )
 
 
-def _gate(gate_id: str, *, work_item_id: str) -> ApprovalGate:
+def _gate(gate_id: ObjectId, *, work_item_id: ObjectId) -> ApprovalGate:
     return ApprovalGate(
         id=gate_id,
         gate_type=GateType.PLAN_APPROVAL,
@@ -378,16 +429,12 @@ def _gate(gate_id: str, *, work_item_id: str) -> ApprovalGate:
     )
 
 
-def _agent_run(run_id: str, *, work_item_id: str) -> AgentRun:
+def _agent_run(run_id: ObjectId, *, work_item_id: ObjectId) -> AgentRun:
     return AgentRun(
         id=run_id,
         work_item_id=work_item_id,
         workflow_stage=WorkflowStage.IMPLEMENTATION,
-        runner_profile=RunnerProfile(
-            runner_type="codex",
-            profile_name="local",
-            sandbox="workspace",
-        ),
+        runner_profile=_runner_profile(),
         budget=RunBudget(max_minutes=30, max_attempts=1),
         agent=ActorRef(actor_type=ActorType.AGENT, actor_id="codex"),
         status=RunStatus.STARTED,
@@ -400,7 +447,7 @@ def _agent_run(run_id: str, *, work_item_id: str) -> AgentRun:
     )
 
 
-def _evidence_bundle(bundle_id: str, *, subject_id: str) -> EvidenceBundle:
+def _evidence_bundle(bundle_id: ObjectId, *, subject_id: ObjectId) -> EvidenceBundle:
     return EvidenceBundle(
         id=bundle_id,
         subject_type="work_item",
@@ -414,13 +461,14 @@ def _evidence_bundle(bundle_id: str, *, subject_id: str) -> EvidenceBundle:
     )
 
 
-def _tool_connection() -> ToolConnection:
+def _tool_connection(connection_id: ObjectId, *, project_id: ObjectId) -> ToolConnection:
     return ToolConnection(
-        id="tool-github",
-        project=_project_ref(),
+        id=connection_id,
+        project=_project_ref(project_id),
         tool_type="github",
         display_name="GitHub",
         status=ToolConnectionStatus.ACTIVE,
+        allowed_action_summaries=("read issues",),
         created_at=_time(),
         updated_at=_time(),
         source_provenance=_provenance(),
@@ -429,14 +477,15 @@ def _tool_connection() -> ToolConnection:
     )
 
 
-def _tool_policy(tool_policy_id: str = "policy-1") -> ToolPolicy:
+def _tool_policy(policy_id: ObjectId, *, project_id: ObjectId) -> ToolPolicy:
     return ToolPolicy(
-        id=tool_policy_id,
-        project=_project_ref(),
+        id=policy_id,
+        project=_project_ref(project_id),
         tool_type="github",
         action_type="create_pull_request",
         decision=ToolPolicyDecision.REQUIRE_GATE,
-        summary="Require gate for pull request creation.",
+        required_gate_type="merge_readiness",
+        summary="Require a gate before PR creation.",
         created_at=_time(),
         updated_at=_time(),
         source_provenance=_provenance(),
@@ -445,15 +494,17 @@ def _tool_policy(tool_policy_id: str = "policy-1") -> ToolPolicy:
     )
 
 
-def _action_request() -> ActionRequest:
+def _action_request(
+    action_request_id: ObjectId, *, project_id: ObjectId, gate_id: ObjectId
+) -> ActionRequest:
     return ActionRequest(
-        id="action-1",
-        project=_project_ref(),
+        id=action_request_id,
+        project=_project_ref(project_id),
         tool_type="github",
         action_type="create_pull_request",
         status=ActionRequestStatus.GATED,
-        summary="Request PR creation.",
-        required_gate_id="gate-1",
+        summary="Request to open a PR.",
+        required_gate_id=gate_id,
         created_at=_time(),
         updated_at=_time(),
         source_provenance=_provenance(),
@@ -462,15 +513,15 @@ def _action_request() -> ActionRequest:
     )
 
 
-def _tool_invocation() -> ToolInvocation:
+def _tool_invocation(invocation_id: ObjectId, *, action_request_id: ObjectId) -> ToolInvocation:
     return ToolInvocation(
-        id="invocation-1",
+        id=invocation_id,
         tool_type="github",
         action_type="create_pull_request",
         status=ToolInvocationStatus.SKIPPED,
         happened_at=_time(),
-        summary="Skipped until approval.",
-        action_request_id="action-1",
+        summary="Skipped until gate approval.",
+        action_request_id=action_request_id,
         created_at=_time(),
         updated_at=_time(),
         source_provenance=_provenance(),
@@ -480,10 +531,11 @@ def _tool_invocation() -> ToolInvocation:
 
 
 def _event(
-    event_id: str,
+    event_id: ObjectId,
     happened_at: datetime,
     *,
     subject: EventSubject | None = None,
+    subject_id: ObjectId | None = None,
     correlation_id: str = "corr-1",
 ) -> WorkflowEvent:
     return WorkflowEvent(
@@ -491,15 +543,18 @@ def _event(
         event_type=WorkflowEventType.WORK_ITEM_SELECTED,
         happened_at=happened_at,
         actor=ActorRef(actor_type=ActorType.AGENT, actor_id="codex"),
-        subject=subject or EventSubject(subject_type="work_item", subject_id="work-1"),
+        subject=subject or EventSubject(subject_type="work_item", subject_id=subject_id or _id(6)),
         correlation_id=correlation_id,
         workflow_stage=WorkflowStage.IMPLEMENTATION,
         risk=RiskLevel.HIGH,
         public_safety=PublicSafetyClass.PUBLIC_SAFE_SAMPLE,
         payload_schema="work_selection.v1",
-        payload={"action": "implement"},
+        payload={"selected": True},
+        evidence_refs=(_evidence_ref(),),
         source_provenance=_provenance(),
         redaction_status=RedactionStatus.NOT_REQUIRED,
+        created_at=_time(),
+        updated_at=_time(),
     )
 
 
@@ -507,18 +562,18 @@ def _time(minutes: int = 0) -> datetime:
     return datetime(2026, 5, 25, 12, 0, tzinfo=UTC) + timedelta(minutes=minutes)
 
 
-def _project_ref() -> ProjectRef:
-    return ProjectRef(project_id="project-sample", name="Sample Project")
+def _project_ref(project_id: ObjectId) -> ProjectRef:
+    return ProjectRef(project_id=project_id, name="Sample Project")
 
 
-def _target_repo_ref() -> TargetRepoRef:
+def _target_repo_ref(*, project_id: ObjectId, repo_id: ObjectId) -> TargetRepoRef:
     return TargetRepoRef(
-        target_repo_id="repo-sample",
+        target_repo_id=repo_id,
         provider=RepositoryProvider.GITHUB,
         owner="example-org",
         name="example-repo",
         visibility=RepositoryVisibility.PUBLIC,
-        project=_project_ref(),
+        project=_project_ref(project_id),
     )
 
 
@@ -527,6 +582,37 @@ def _repo_lookup() -> RepoLookup:
         provider=RepositoryProvider.GITHUB,
         owner="example-org",
         name="example-repo",
+    )
+
+
+def _observation_query(source_id: ObjectId) -> SourceObservationQuery:
+    return SourceObservationQuery(
+        source_connection_id=source_id,
+        external_id="issue-9",
+        content_hash_value="abc123",
+    )
+
+
+def _cursor_key(source_id: ObjectId) -> SyncCursorKey:
+    return SyncCursorKey(source_connection_id=source_id, cursor_name="issues")
+
+
+def _tool_query(project_id: ObjectId) -> ToolActionQuery:
+    return ToolActionQuery(
+        project_id=project_id,
+        tool_type="github",
+        action_type="create_pull_request",
+    )
+
+
+def _evidence_ref() -> EvidenceRef:
+    return EvidenceRef(
+        evidence_id="evidence-plan",
+        kind=EvidenceKind.PLAN,
+        uri="docs/agent-plans/sample.md",
+        summary="Public-safe plan.",
+        public_safety=PublicSafetyClass.PUBLIC_SAFE_SAMPLE,
+        redaction_status=RedactionStatus.NOT_REQUIRED,
     )
 
 
@@ -544,32 +630,10 @@ def _hash() -> ContentHash:
     return ContentHash(algorithm="sha256", value="abc123")
 
 
-def _evidence_ref() -> EvidenceRef:
-    return EvidenceRef(
-        evidence_id="evidence-plan",
-        kind=EvidenceKind.PLAN,
-        uri="docs/agent-plans/9-sample.md",
-        summary="Public-safe plan.",
-        public_safety=PublicSafetyClass.PUBLIC_SAFE_SAMPLE,
-        redaction_status=RedactionStatus.NOT_REQUIRED,
-    )
-
-
-def _observation_query() -> SourceObservationQuery:
-    return SourceObservationQuery(
-        source_connection_id="source-github",
-        external_id="issue-9",
-        content_hash_value="abc123",
-    )
-
-
-def _cursor_key() -> SyncCursorKey:
-    return SyncCursorKey(source_connection_id="source-github", cursor_name="issues")
-
-
-def _tool_query() -> ToolActionQuery:
-    return ToolActionQuery(
-        project_id="project-sample",
-        tool_type="github",
-        action_type="create_pull_request",
+def _runner_profile() -> RunnerProfile:
+    return RunnerProfile(
+        runner_type="codex",
+        profile_name="local-sandbox",
+        sandbox="workspace",
+        network_access=False,
     )

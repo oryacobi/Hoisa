@@ -1,11 +1,10 @@
 {
-  "id": "gate_plan_sample",
+  "id": "650000000000000000000005",
   "created_at": "2026-05-25T12:20:00Z",
   "updated_at": "2026-05-25T12:25:00Z",
-  "schema_version": 1,
   "gate_type": "plan_approval",
   "gate_status": "approved",
-  "work_item_id": "work_item_sample_models",
+  "work_item_id": "650000000000000000000004",
   "workflow_stage": "Plan Approval",
   "risk": "high",
   "recommendation": "approve",

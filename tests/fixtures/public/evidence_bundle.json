@@ -1,10 +1,9 @@
 {
-  "id": "bundle_sample_models",
+  "id": "650000000000000000000009",
   "created_at": "2026-05-25T12:50:00Z",
   "updated_at": "2026-05-25T12:50:00Z",
-  "schema_version": 1,
   "subject_type": "work_item",
-  "subject_id": "work_item_sample_models",
+  "subject_id": "650000000000000000000004",
   "refs": [
     {
       "evidence_id": "evidence_plan_sample",

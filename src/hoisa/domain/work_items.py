@@ -2,11 +2,11 @@
 
 from typing import ClassVar
 
-from antonic import AntIndex
+from antonic import AntDoc, AntIndex
 from pydantic import Field
 
 from hoisa.domain.evidence import EvidenceRef
-from hoisa.domain.models import ASCENDING, CollectionRoot, HoisaModel
+from hoisa.domain.models import ASCENDING, HoisaModel, RecordId
 from hoisa.domain.privacy import PublicSafetyClass, RedactionStatus
 from hoisa.domain.provenance import SourceProvenance
 from hoisa.domain.target_repos import TargetRepoRef
@@ -37,7 +37,7 @@ class TrackerIssueRef(HoisaModel):
     url: str
 
 
-class WorkItem(CollectionRoot):
+class WorkItem(AntDoc):
     """Agent-ready unit of Hoisa workflow."""
 
     ant_collection: ClassVar[str] = "work_items"
@@ -50,6 +50,7 @@ class WorkItem(CollectionRoot):
         ),
     )
 
+    id: RecordId | None = None
     item_type: WorkItemType
     title: str = Field(min_length=1)
     goal: str = Field(min_length=1)

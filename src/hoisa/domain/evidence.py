@@ -3,9 +3,10 @@
 from enum import StrEnum
 from typing import ClassVar
 
+from antonic import AntDoc
 from pydantic import Field
 
-from hoisa.domain.models import CollectionRoot, HoisaModel
+from hoisa.domain.models import HoisaModel, RecordId
 from hoisa.domain.privacy import PublicSafetyClass, RedactionStatus
 from hoisa.domain.provenance import ContentHash, SourceProvenance
 
@@ -45,13 +46,14 @@ class EvidenceRequirement(HoisaModel):
     required: bool = True
 
 
-class EvidenceBundle(CollectionRoot):
+class EvidenceBundle(AntDoc):
     """Collection-root evidence package for review and audit."""
 
     ant_collection: ClassVar[str] = "evidence_bundles"
 
+    id: RecordId | None = None
     subject_type: str = Field(min_length=1)
-    subject_id: str = Field(min_length=1)
+    subject_id: RecordId
     refs: tuple[EvidenceRef, ...] = Field(min_length=1)
     source_provenance: SourceProvenance | None = None
     public_safety: PublicSafetyClass

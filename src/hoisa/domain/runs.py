@@ -3,11 +3,12 @@
 from enum import StrEnum
 from typing import ClassVar
 
+from antonic import AntDoc
 from pydantic import Field
 
 from hoisa.domain.actors import ActorRef
 from hoisa.domain.evidence import EvidenceRef
-from hoisa.domain.models import CollectionRoot, HoisaModel, UtcDatetime
+from hoisa.domain.models import HoisaModel, RecordId, UtcDatetime
 from hoisa.domain.privacy import PublicSafetyClass, RedactionStatus
 from hoisa.domain.provenance import SourceProvenance
 from hoisa.domain.workflow_state import WorkflowStage
@@ -64,12 +65,13 @@ class CheckSummary(HoisaModel):
     evidence_refs: tuple[EvidenceRef, ...] = ()
 
 
-class AgentRun(CollectionRoot):
+class AgentRun(AntDoc):
     """Disposable run attempt for one bounded workflow stage."""
 
     ant_collection: ClassVar[str] = "agent_runs"
 
-    work_item_id: str = Field(min_length=1)
+    id: RecordId | None = None
+    work_item_id: RecordId
     workflow_stage: WorkflowStage
     runner_profile: RunnerProfile
     budget: RunBudget
