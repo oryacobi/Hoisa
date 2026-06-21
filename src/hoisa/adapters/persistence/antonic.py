@@ -20,10 +20,12 @@ class HoisaAntConnector(HoisaPersistenceHelpers, AntConnector):
         client_options: Mapping[str, Any] | None = None,
         strict_registration: bool = False,
     ) -> None:
+        options: dict[str, Any] = {"tz_aware": True}
+        options.update(client_options or {})
         super().__init__(
             connection_string,
             database=database,
-            client_options=client_options,
+            client_options=options,
             strict_registration=strict_registration,
         )
         self.register(*DURABLE_RECORD_TYPES)

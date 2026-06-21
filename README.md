@@ -15,6 +15,7 @@ itself through its own agent workflow. Initial artifacts:
 
 - [Vision](docs/vision.md)
 - [Human-Agent Project Orchestration Research](docs/research/human-agent-project-orchestration.md)
+- [AntDocs And Development Flow](docs/architecture/antdocs-and-development-flow.md)
 - [GitHub Agent Workflow](docs/github-workflow.md)
 - [Agent Instructions](AGENTS.md)
 
