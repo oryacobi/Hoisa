@@ -102,3 +102,54 @@ logs, private target-repo identifiers, or local worktree paths.
 Backup, retention, restore, credential rotation automation, schemas, indexes,
 and MongoDB application users are intentionally out of scope for this local
 runtime slice.
+
+## Docker Codex POC Smoke
+
+Issue #31 adds a local-only smoke path for the first process-to-coding slice.
+It builds a disposable Codex image, runs one bounded command in Docker, stores a
+compact `AgentRun`, and stores raw stdout/stderr/exit metadata on the paired
+private `WorkflowEvent.payload`.
+
+Build the POC image from the repository root:
+
+```bash
+docker build -f deploy/local/codex-poc.Dockerfile -t hoisa-codex-poc:local .
+```
+
+Run a non-agent image check first if you only want to validate the local image
+and MongoDB path:
+
+```bash
+uv run python scripts/poc_docker_agent_run.py \
+  --image hoisa-codex-poc:local \
+  --agent-command 'codex --version'
+```
+
+Run a bounded Codex agent smoke with only the context it needs. The prompt below
+does not include GitHub issue, Project, plan, gate, or workflow-helper context:
+
+```bash
+uv run python scripts/poc_docker_agent_run.py \
+  --image hoisa-codex-poc:local \
+  --agent-command 'codex exec --sandbox read-only --ask-for-approval never "Print exactly: hoisa docker codex poc"'
+```
+
+The script reads `MONGODB_URI` and `MONGODB_DATABASE` from the environment or
+ignored `deploy/local/.env`. By default it prints only safe summary fields:
+record ids, database name, exit code, and whether the raw payload read back
+from MongoDB. Do not use `--print-raw` in public logs, issue comments, PR text,
+or screenshots.
+
+If local Codex auth is needed for an agent smoke, provide it as private ignored
+local state, such as placeholder-only environment or volume examples:
+
+```bash
+uv run python scripts/poc_docker_agent_run.py \
+  --image hoisa-codex-poc:local \
+  --env CODEX_HOME=/codex-home \
+  --volume '<private-codex-home>:/codex-home:ro' \
+  --agent-command 'codex exec --sandbox read-only --ask-for-approval never "Print exactly: hoisa docker codex poc"'
+```
+
+Replace placeholders locally. Do not commit or paste real auth file paths,
+tokens, config contents, or raw runner output.
