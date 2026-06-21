@@ -67,6 +67,36 @@ Coding-runner responsibility:
 - avoid queue routing, gate decisions, tracker writes, and workflow-state
   changes.
 
+## Manual Handoff Loop
+
+The first manual Hoisa-assisted loop adds one narrow handoff between those
+layers. A process agent or human prepares a `TaskPacket`; Hoisa renders that
+packet into deterministic coding-runner input; the local Docker Codex POC can
+then receive the rendered prompt as its bounded command payload.
+
+The handoff renderer is fixed logic. It copies only task-packet fields into a
+stable prompt shape:
+
+- objective;
+- workflow stage;
+- target repository identity;
+- context references;
+- allowed actions and exact authority;
+- runner profile and budget;
+- expected evidence.
+
+LLM-assisted judgment may help create or refine the upstream `TaskPacket`, such
+as summarizing context, choosing concise evidence refs, or recommending allowed
+actions. It should not be needed by the coding runner to reconstruct GitHub
+Project state, issue routing, approval mechanics, helper commands, raw runner
+payloads, or broader planning history.
+
+After the runner returns, fixed logic should persist compact `AgentRun`
+summaries and private raw-result `WorkflowEvent.payload` records. Later Hoisa
+work can decide whether LLM-assisted process judgment should summarize the run,
+recommend the next transition, or draft a human gate card from those durable
+records.
+
 ## Not In This Slice
 
 This POC is not the production runner abstraction. It does not add a runner
