@@ -1,6 +1,7 @@
 """Agent run records and compact execution summaries."""
 
 from enum import StrEnum
+from typing import ClassVar
 
 from pydantic import Field
 
@@ -66,7 +67,8 @@ class CheckSummary(HoisaModel):
 class AgentRun(CollectionRoot):
     """Disposable run attempt for one bounded workflow stage."""
 
-    run_id: str = Field(min_length=1)
+    ant_collection: ClassVar[str] = "agent_runs"
+
     work_item_id: str = Field(min_length=1)
     workflow_stage: WorkflowStage
     runner_profile: RunnerProfile

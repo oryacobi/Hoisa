@@ -30,7 +30,7 @@ from hoisa.domain.workflow_state import ReviewRoute, RiskLevel, WorkflowStage
 
 def test_collection_roots_normalize_timezone_aware_timestamps() -> None:
     directive = Directive(
-        directive_id="directive-1",
+        id="directive-1",
         created_at=datetime(2026, 5, 25, 8, 0, tzinfo=UTC),
         updated_at=datetime(2026, 5, 25, 8, 5, tzinfo=UTC),
         project=_project(),
@@ -44,7 +44,8 @@ def test_collection_roots_normalize_timezone_aware_timestamps() -> None:
         redaction_status=RedactionStatus.NOT_REQUIRED,
     )
 
-    assert directive.directive_id == "directive-1"
+    assert directive.id == "directive-1"
+    assert directive.created_at is not None
     assert directive.created_at.tzinfo == UTC
     assert directive.schema_version == 1
 
@@ -52,7 +53,7 @@ def test_collection_roots_normalize_timezone_aware_timestamps() -> None:
 def test_naive_datetimes_are_rejected() -> None:
     with pytest.raises(ValidationError, match="timezone-aware"):
         Directive(
-            directive_id="directive-1",
+            id="directive-1",
             created_at=datetime(2026, 5, 25, 8, 0),
             updated_at=datetime(2026, 5, 25, 8, 5, tzinfo=UTC),
             project=_project(),
@@ -84,7 +85,7 @@ def test_gate_records_exact_authority_and_decision_context() -> None:
         source_provenance=_provenance(source_system=SourceSystem.HUMAN),
     )
     gate = ApprovalGate(
-        gate_id="gate-1",
+        id="gate-1",
         created_at=datetime(2026, 5, 25, 8, 30, tzinfo=UTC),
         updated_at=datetime(2026, 5, 25, 9, 0, tzinfo=UTC),
         gate_type=GateType.PLAN_APPROVAL,
@@ -117,7 +118,7 @@ def test_gate_records_exact_authority_and_decision_context() -> None:
 
 def test_task_packets_bound_context_actions_budget_and_evidence_requirements() -> None:
     packet = TaskPacket(
-        packet_id="packet-1",
+        id="packet-1",
         work_item_id="work-1",
         created_at=datetime(2026, 5, 25, 10, 0, tzinfo=UTC),
         updated_at=datetime(2026, 5, 25, 10, 0, tzinfo=UTC),
@@ -155,7 +156,7 @@ def test_task_packets_bound_context_actions_budget_and_evidence_requirements() -
 
 def test_workflow_events_carry_correlation_provenance_and_evidence() -> None:
     event = WorkflowEvent(
-        event_id="event-1",
+        id="event-1",
         event_type=WorkflowEventType.GATE_DECIDED,
         happened_at=datetime(2026, 5, 25, 11, 0, tzinfo=UTC),
         actor=ActorRef(actor_type=ActorType.HUMAN, actor_id="human-reviewer"),

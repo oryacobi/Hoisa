@@ -184,13 +184,13 @@ class _InMemoryProjectRepository:
         self._store = store
 
     async def save(self, project: Project) -> None:
-        self._store.projects[project.project_id] = project
+        self._store.projects[project.id] = project
 
     async def get(self, project_id: str) -> Project | None:
         return self._store.projects.get(project_id)
 
     async def list_all(self) -> Sequence[Project]:
-        return _sorted_by_id(self._store.projects.values(), lambda project: project.project_id)
+        return _sorted_by_id(self._store.projects.values(), lambda project: project.id)
 
 
 class _InMemoryTargetRepoRepository:
@@ -199,15 +199,12 @@ class _InMemoryTargetRepoRepository:
 
     async def save(self, target_repo: TargetRepo) -> None:
         _reject_collision(
-            (
-                (repo.target_repo_id, _target_repo_key(repo))
-                for repo in self._store.target_repos.values()
-            ),
-            new_id=target_repo.target_repo_id,
+            ((repo.id, _target_repo_key(repo)) for repo in self._store.target_repos.values()),
+            new_id=target_repo.id,
             new_key=_target_repo_key(target_repo),
             label="target repository provider identity",
         )
-        self._store.target_repos[target_repo.target_repo_id] = target_repo
+        self._store.target_repos[target_repo.id] = target_repo
 
     async def get(self, target_repo_id: str) -> TargetRepo | None:
         return self._store.target_repos.get(target_repo_id)
@@ -226,7 +223,7 @@ class _InMemoryTargetRepoRepository:
                 for repo in self._store.target_repos.values()
                 if repo.project.project_id == project_id
             ),
-            lambda repo: repo.target_repo_id,
+            lambda repo: repo.id,
         )
 
 
@@ -235,7 +232,7 @@ class _InMemorySourceConnectionRepository:
         self._store = store
 
     async def save(self, connection: SourceConnection) -> None:
-        self._store.source_connections[connection.source_connection_id] = connection
+        self._store.source_connections[connection.id] = connection
 
     async def get(self, source_connection_id: str) -> SourceConnection | None:
         return self._store.source_connections.get(source_connection_id)
@@ -247,7 +244,7 @@ class _InMemorySourceConnectionRepository:
                 for connection in self._store.source_connections.values()
                 if connection.project.project_id == project_id
             ),
-            lambda connection: connection.source_connection_id,
+            lambda connection: connection.id,
         )
 
 
@@ -258,14 +255,14 @@ class _InMemorySourceObservationRepository:
     async def save(self, observation: SourceObservation) -> None:
         _reject_collision(
             (
-                (existing.observation_id, _source_observation_key(existing))
+                (existing.id, _source_observation_key(existing))
                 for existing in self._store.source_observations.values()
             ),
-            new_id=observation.observation_id,
+            new_id=observation.id,
             new_key=_source_observation_key(observation),
             label="source observation external identity",
         )
-        self._store.source_observations[observation.observation_id] = observation
+        self._store.source_observations[observation.id] = observation
 
     async def get(self, observation_id: str) -> SourceObservation | None:
         return self._store.source_observations.get(observation_id)
@@ -277,7 +274,7 @@ class _InMemorySourceObservationRepository:
                 for observation in self._store.source_observations.values()
                 if _matches_observation_query(observation, query)
             ),
-            lambda observation: observation.observation_id,
+            lambda observation: observation.id,
         )
 
 
@@ -288,14 +285,14 @@ class _InMemorySyncCursorRepository:
     async def save(self, cursor: SyncCursor) -> None:
         _reject_collision(
             (
-                (existing.cursor_id, _sync_cursor_key(existing))
+                (existing.id, _sync_cursor_key(existing))
                 for existing in self._store.sync_cursors.values()
             ),
-            new_id=cursor.cursor_id,
+            new_id=cursor.id,
             new_key=_sync_cursor_key(cursor),
             label="sync cursor source/name",
         )
-        self._store.sync_cursors[cursor.cursor_id] = cursor
+        self._store.sync_cursors[cursor.id] = cursor
 
     async def get(self, key: SyncCursorKey) -> SyncCursor | None:
         target = (key.source_connection_id, key.cursor_name)
@@ -311,7 +308,7 @@ class _InMemorySyncCursorRepository:
                 for cursor in self._store.sync_cursors.values()
                 if cursor.source_connection_id == source_connection_id
             ),
-            lambda cursor: cursor.cursor_id,
+            lambda cursor: cursor.id,
         )
 
 
@@ -323,15 +320,15 @@ class _InMemoryWorkItemRepository:
         if work_item.tracker_issue is not None:
             _reject_collision(
                 (
-                    (existing.work_item_id, _tracker_issue_key(existing))
+                    (existing.id, _tracker_issue_key(existing))
                     for existing in self._store.work_items.values()
                     if existing.tracker_issue is not None
                 ),
-                new_id=work_item.work_item_id,
+                new_id=work_item.id,
                 new_key=_tracker_issue_key(work_item),
                 label="work item tracker issue",
             )
-        self._store.work_items[work_item.work_item_id] = work_item
+        self._store.work_items[work_item.id] = work_item
 
     async def get(self, work_item_id: str) -> WorkItem | None:
         return self._store.work_items.get(work_item_id)
@@ -350,9 +347,7 @@ class _InMemoryWorkItemRepository:
         return _sorted_work_items(
             work_item
             for work_item in self._store.work_items.values()
-            if _is_runnable(
-                work_item, self._store.workflow_states.get(work_item.work_item_id), query
-            )
+            if _is_runnable(work_item, self._store.workflow_states.get(work_item.id), query)
         )
 
 
@@ -361,7 +356,7 @@ class _InMemoryWorkflowStateRepository:
         self._store = store
 
     async def save(self, state_record: WorkflowStateRecord) -> None:
-        self._store.workflow_states[state_record.work_item_id] = state_record
+        self._store.workflow_states[state_record.id] = state_record
 
     async def get(self, work_item_id: str) -> WorkflowStateRecord | None:
         return self._store.workflow_states.get(work_item_id)
@@ -400,7 +395,7 @@ class _InMemoryApprovalGateRepository:
         self._store = store
 
     async def save(self, gate: ApprovalGate) -> None:
-        self._store.gates[gate.gate_id] = gate
+        self._store.gates[gate.id] = gate
 
     async def get(self, gate_id: str) -> ApprovalGate | None:
         return self._store.gates.get(gate_id)
@@ -424,7 +419,7 @@ class _InMemoryAgentRunRepository:
         self._store = store
 
     async def save(self, run: AgentRun) -> None:
-        self._store.agent_runs[run.run_id] = run
+        self._store.agent_runs[run.id] = run
 
     async def get(self, run_id: str) -> AgentRun | None:
         return self._store.agent_runs.get(run_id)
@@ -432,7 +427,7 @@ class _InMemoryAgentRunRepository:
     async def list_by_work_item(self, work_item_id: str) -> Sequence[AgentRun]:
         return _sorted_by_id(
             (run for run in self._store.agent_runs.values() if run.work_item_id == work_item_id),
-            lambda run: run.run_id,
+            lambda run: run.id,
         )
 
 
@@ -441,7 +436,7 @@ class _InMemoryEvidenceBundleRepository:
         self._store = store
 
     async def save(self, bundle: EvidenceBundle) -> None:
-        self._store.evidence_bundles[bundle.bundle_id] = bundle
+        self._store.evidence_bundles[bundle.id] = bundle
 
     async def get(self, bundle_id: str) -> EvidenceBundle | None:
         return self._store.evidence_bundles.get(bundle_id)
@@ -455,7 +450,7 @@ class _InMemoryEvidenceBundleRepository:
                 for bundle in self._store.evidence_bundles.values()
                 if bundle.subject_type == subject_type and bundle.subject_id == subject_id
             ),
-            lambda bundle: bundle.bundle_id,
+            lambda bundle: bundle.id,
         )
 
 
@@ -464,7 +459,7 @@ class _InMemoryToolConnectionRepository:
         self._store = store
 
     async def save(self, connection: ToolConnection) -> None:
-        self._store.tool_connections[connection.tool_connection_id] = connection
+        self._store.tool_connections[connection.id] = connection
 
     async def get(self, tool_connection_id: str) -> ToolConnection | None:
         return self._store.tool_connections.get(tool_connection_id)
@@ -476,7 +471,7 @@ class _InMemoryToolConnectionRepository:
                 for connection in self._store.tool_connections.values()
                 if connection.project.project_id == project_id
             ),
-            lambda connection: connection.tool_connection_id,
+            lambda connection: connection.id,
         )
 
 
@@ -487,14 +482,14 @@ class _InMemoryToolPolicyRepository:
     async def save(self, policy: ToolPolicy) -> None:
         _reject_collision(
             (
-                (existing.tool_policy_id, _tool_policy_key(existing))
+                (existing.id, _tool_policy_key(existing))
                 for existing in self._store.tool_policies.values()
             ),
-            new_id=policy.tool_policy_id,
+            new_id=policy.id,
             new_key=_tool_policy_key(policy),
             label="tool policy action identity",
         )
-        self._store.tool_policies[policy.tool_policy_id] = policy
+        self._store.tool_policies[policy.id] = policy
 
     async def get(self, tool_policy_id: str) -> ToolPolicy | None:
         return self._store.tool_policies.get(tool_policy_id)
@@ -511,7 +506,7 @@ class _InMemoryToolPolicyRepository:
                     query,
                 )
             ),
-            lambda policy: policy.tool_policy_id,
+            lambda policy: policy.id,
         )
 
 
@@ -520,7 +515,7 @@ class _InMemoryActionRequestRepository:
         self._store = store
 
     async def save(self, request: ActionRequest) -> None:
-        self._store.action_requests[request.action_request_id] = request
+        self._store.action_requests[request.id] = request
 
     async def get(self, action_request_id: str) -> ActionRequest | None:
         return self._store.action_requests.get(action_request_id)
@@ -532,7 +527,7 @@ class _InMemoryActionRequestRepository:
                 for request in self._store.action_requests.values()
                 if request.status == status
             ),
-            lambda request: request.action_request_id,
+            lambda request: request.id,
         )
 
     async def list_for_gate(self, gate_id: str) -> Sequence[ActionRequest]:
@@ -542,7 +537,7 @@ class _InMemoryActionRequestRepository:
                 for request in self._store.action_requests.values()
                 if request.required_gate_id == gate_id
             ),
-            lambda request: request.action_request_id,
+            lambda request: request.id,
         )
 
 
@@ -551,7 +546,7 @@ class _InMemoryToolInvocationRepository:
         self._store = store
 
     async def save(self, invocation: ToolInvocation) -> None:
-        self._store.tool_invocations[invocation.tool_invocation_id] = invocation
+        self._store.tool_invocations[invocation.id] = invocation
 
     async def get(self, tool_invocation_id: str) -> ToolInvocation | None:
         return self._store.tool_invocations.get(tool_invocation_id)
@@ -587,10 +582,10 @@ class _InMemoryWorkflowEventStore:
         self._store = store
 
     async def append(self, event: WorkflowEvent) -> None:
-        if event.event_id in self._store.workflow_events:
-            raise DuplicateRecordError(f"Workflow event already exists: {event.event_id}")
-        self._store.workflow_events[event.event_id] = event
-        self._store.workflow_event_order.append(event.event_id)
+        if event.id in self._store.workflow_events:
+            raise DuplicateRecordError(f"Workflow event already exists: {event.id}")
+        self._store.workflow_events[event.id] = event
+        self._store.workflow_event_order.append(event.id)
 
     async def get(self, event_id: str) -> WorkflowEvent | None:
         return self._store.workflow_events.get(event_id)
@@ -739,20 +734,20 @@ def _sorted_by_id[T](items: Iterable[T], key: Callable[[T], str]) -> tuple[T, ..
 
 
 def _sorted_work_items(items: Iterable[WorkItem]) -> tuple[WorkItem, ...]:
-    return tuple(sorted(items, key=lambda item: (item.created_at, item.work_item_id)))
+    return tuple(sorted(items, key=lambda item: (item.created_at, item.id)))
 
 
 def _sorted_state_records(items: Iterable[WorkflowStateRecord]) -> tuple[WorkflowStateRecord, ...]:
-    return tuple(sorted(items, key=lambda item: (item.updated_at, item.work_item_id)))
+    return tuple(sorted(items, key=lambda item: (item.updated_at, item.id)))
 
 
 def _sorted_gates(items: Iterable[ApprovalGate]) -> tuple[ApprovalGate, ...]:
-    return tuple(sorted(items, key=lambda item: (item.created_at, item.gate_id)))
+    return tuple(sorted(items, key=lambda item: (item.created_at, item.id)))
 
 
 def _sorted_invocations(items: Iterable[ToolInvocation]) -> tuple[ToolInvocation, ...]:
-    return tuple(sorted(items, key=lambda item: (item.happened_at, item.tool_invocation_id)))
+    return tuple(sorted(items, key=lambda item: (item.happened_at, item.id)))
 
 
 def _sorted_events(items: Iterable[WorkflowEvent]) -> tuple[WorkflowEvent, ...]:
-    return tuple(sorted(items, key=lambda item: (item.happened_at, item.event_id)))
+    return tuple(sorted(items, key=lambda item: (item.happened_at, item.id)))

@@ -1,6 +1,7 @@
 """Evidence references and bundles for Hoisa review surfaces."""
 
 from enum import StrEnum
+from typing import ClassVar
 
 from pydantic import Field
 
@@ -47,7 +48,8 @@ class EvidenceRequirement(HoisaModel):
 class EvidenceBundle(CollectionRoot):
     """Collection-root evidence package for review and audit."""
 
-    bundle_id: str = Field(min_length=1)
+    ant_collection: ClassVar[str] = "evidence_bundles"
+
     subject_type: str = Field(min_length=1)
     subject_id: str = Field(min_length=1)
     refs: tuple[EvidenceRef, ...] = Field(min_length=1)

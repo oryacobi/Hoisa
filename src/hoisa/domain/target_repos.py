@@ -1,10 +1,12 @@
 """Project and repository references used by Hoisa records."""
 
 from enum import StrEnum
+from typing import ClassVar
 
+from antonic import AntIndex
 from pydantic import Field
 
-from hoisa.domain.models import CollectionRoot, HoisaModel
+from hoisa.domain.models import ASCENDING, CollectionRoot, HoisaModel
 from hoisa.domain.privacy import PublicSafetyClass, RedactionStatus
 from hoisa.domain.provenance import SourceProvenance
 
@@ -34,7 +36,8 @@ class ProjectRef(HoisaModel):
 class Project(CollectionRoot):
     """Current-state project record stored by persistence adapters."""
 
-    project_id: str = Field(min_length=1)
+    ant_collection: ClassVar[str] = "projects"
+
     name: str = Field(min_length=1)
     summary: str = Field(min_length=1)
     source_provenance: SourceProvenance
@@ -56,7 +59,15 @@ class TargetRepoRef(HoisaModel):
 class TargetRepo(CollectionRoot):
     """Current-state target repository record without local paths or secrets."""
 
-    target_repo_id: str = Field(min_length=1)
+    ant_collection: ClassVar[str] = "target_repos"
+    ant_indexes: ClassVar[tuple[AntIndex, ...]] = (
+        AntIndex(
+            [("provider", ASCENDING), ("owner", ASCENDING), ("name", ASCENDING)],
+            unique=True,
+            name="uniq_target_repo_provider_identity",
+        ),
+    )
+
     provider: RepositoryProvider
     owner: str = Field(min_length=1)
     name: str = Field(min_length=1)

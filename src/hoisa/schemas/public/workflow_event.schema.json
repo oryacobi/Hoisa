@@ -338,10 +338,18 @@
       "title": "Correlation Id",
       "type": "string"
     },
-    "event_id": {
-      "minLength": 1,
-      "title": "Event Id",
-      "type": "string"
+    "created_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Created At"
     },
     "event_type": {
       "$ref": "#/$defs/WorkflowEventType"
@@ -357,6 +365,11 @@
     "happened_at": {
       "format": "date-time",
       "title": "Happened At",
+      "type": "string"
+    },
+    "id": {
+      "minLength": 1,
+      "title": "Id",
       "type": "string"
     },
     "payload": {
@@ -416,12 +429,30 @@
     "subject": {
       "$ref": "#/$defs/EventSubject"
     },
+    "updated_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Updated At"
+    },
+    "version": {
+      "default": 0,
+      "title": "Version",
+      "type": "integer"
+    },
     "workflow_stage": {
       "$ref": "#/$defs/WorkflowStage"
     }
   },
   "required": [
-    "event_id",
+    "id",
     "event_type",
     "happened_at",
     "actor",

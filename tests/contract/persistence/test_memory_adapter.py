@@ -183,10 +183,10 @@ def test_runnable_gate_and_lease_queries_are_intention_revealing() -> None:
     expired = run(provider.workflow_states.list_expired_leases(LeaseLookupQuery(now=now)))
     waiting = run(provider.gates.list_waiting(WaitingGateQuery(tracker_issue_number=1)))
 
-    assert [item.work_item_id for item in runnable] == ["eligible", "expired"]
+    assert [item.id for item in runnable] == ["eligible", "expired"]
     assert [record.work_item_id for record in active] == ["active"]
     assert [record.work_item_id for record in expired] == ["expired"]
-    assert [gate.gate_id for gate in waiting] == ["gate-1"]
+    assert [gate.id for gate in waiting] == ["gate-1"]
 
 
 def test_events_are_append_only_and_query_order_is_deterministic() -> None:
@@ -209,9 +209,9 @@ def test_events_are_append_only_and_query_order_is_deterministic() -> None:
     by_correlation = run(provider.workflow_events.list_for_correlation("corr-1"))
     recent = run(provider.workflow_events.list_recent(limit=2))
 
-    assert [event.event_id for event in by_subject] == ["event-1", "event-2"]
-    assert [event.event_id for event in by_correlation] == ["event-1", "event-2"]
-    assert [event.event_id for event in recent] == ["event-2", "event-3"]
+    assert [event.id for event in by_subject] == ["event-1", "event-2"]
+    assert [event.id for event in by_correlation] == ["event-1", "event-2"]
+    assert [event.id for event in recent] == ["event-2", "event-3"]
 
 
 def test_provider_instances_do_not_share_state() -> None:
@@ -229,7 +229,7 @@ def run[T](coro: Coroutine[Any, Any, T]) -> T:
 
 def _project(project_id: str = "project-sample") -> Project:
     return Project(
-        project_id=project_id,
+        id=project_id,
         name="Sample Project",
         summary="Public-safe sample project.",
         created_at=_time(),
@@ -242,7 +242,7 @@ def _project(project_id: str = "project-sample") -> Project:
 
 def _target_repo(target_repo_id: str = "repo-sample") -> TargetRepo:
     return TargetRepo(
-        target_repo_id=target_repo_id,
+        id=target_repo_id,
         provider=RepositoryProvider.GITHUB,
         owner="example-org",
         name="example-repo",
@@ -259,7 +259,7 @@ def _target_repo(target_repo_id: str = "repo-sample") -> TargetRepo:
 
 def _source_connection() -> SourceConnection:
     return SourceConnection(
-        source_connection_id="source-github",
+        id="source-github",
         project=_project_ref(),
         source_system=SourceSystem.GITHUB,
         display_name="Example GitHub",
@@ -275,7 +275,7 @@ def _source_connection() -> SourceConnection:
 
 def _source_observation(observation_id: str = "observation-1") -> SourceObservation:
     return SourceObservation(
-        observation_id=observation_id,
+        id=observation_id,
         source_connection_id="source-github",
         external_id="issue-9",
         content_hash=_hash(),
@@ -292,7 +292,7 @@ def _source_observation(observation_id: str = "observation-1") -> SourceObservat
 
 def _sync_cursor(cursor_id: str = "cursor-1") -> SyncCursor:
     return SyncCursor(
-        cursor_id=cursor_id,
+        id=cursor_id,
         source_connection_id="source-github",
         cursor_name="issues",
         cursor_value="cursor-value",
@@ -306,7 +306,7 @@ def _sync_cursor(cursor_id: str = "cursor-1") -> SyncCursor:
 
 def _work_item(work_item_id: str, *, issue_number: int) -> WorkItem:
     return WorkItem(
-        work_item_id=work_item_id,
+        id=work_item_id,
         item_type=WorkItemType.TASK,
         title=f"Issue {issue_number}",
         goal="Implement a public-safe sample task.",
@@ -338,6 +338,7 @@ def _state(
     blockers: tuple[Blocker, ...] = (),
 ) -> WorkflowStateRecord:
     return WorkflowStateRecord(
+        id=work_item_id,
         work_item_id=work_item_id,
         state=WorkflowState(
             stage=WorkflowStage.IMPLEMENTATION,
@@ -357,7 +358,7 @@ def _state(
 
 def _gate(gate_id: str, *, work_item_id: str) -> ApprovalGate:
     return ApprovalGate(
-        gate_id=gate_id,
+        id=gate_id,
         gate_type=GateType.PLAN_APPROVAL,
         gate_status=GateStatus.WAITING,
         work_item_id=work_item_id,
@@ -379,7 +380,7 @@ def _gate(gate_id: str, *, work_item_id: str) -> ApprovalGate:
 
 def _agent_run(run_id: str, *, work_item_id: str) -> AgentRun:
     return AgentRun(
-        run_id=run_id,
+        id=run_id,
         work_item_id=work_item_id,
         workflow_stage=WorkflowStage.IMPLEMENTATION,
         runner_profile=RunnerProfile(
@@ -401,7 +402,7 @@ def _agent_run(run_id: str, *, work_item_id: str) -> AgentRun:
 
 def _evidence_bundle(bundle_id: str, *, subject_id: str) -> EvidenceBundle:
     return EvidenceBundle(
-        bundle_id=bundle_id,
+        id=bundle_id,
         subject_type="work_item",
         subject_id=subject_id,
         refs=(_evidence_ref(),),
@@ -415,7 +416,7 @@ def _evidence_bundle(bundle_id: str, *, subject_id: str) -> EvidenceBundle:
 
 def _tool_connection() -> ToolConnection:
     return ToolConnection(
-        tool_connection_id="tool-github",
+        id="tool-github",
         project=_project_ref(),
         tool_type="github",
         display_name="GitHub",
@@ -430,7 +431,7 @@ def _tool_connection() -> ToolConnection:
 
 def _tool_policy(tool_policy_id: str = "policy-1") -> ToolPolicy:
     return ToolPolicy(
-        tool_policy_id=tool_policy_id,
+        id=tool_policy_id,
         project=_project_ref(),
         tool_type="github",
         action_type="create_pull_request",
@@ -446,7 +447,7 @@ def _tool_policy(tool_policy_id: str = "policy-1") -> ToolPolicy:
 
 def _action_request() -> ActionRequest:
     return ActionRequest(
-        action_request_id="action-1",
+        id="action-1",
         project=_project_ref(),
         tool_type="github",
         action_type="create_pull_request",
@@ -463,7 +464,7 @@ def _action_request() -> ActionRequest:
 
 def _tool_invocation() -> ToolInvocation:
     return ToolInvocation(
-        tool_invocation_id="invocation-1",
+        id="invocation-1",
         tool_type="github",
         action_type="create_pull_request",
         status=ToolInvocationStatus.SKIPPED,
@@ -486,7 +487,7 @@ def _event(
     correlation_id: str = "corr-1",
 ) -> WorkflowEvent:
     return WorkflowEvent(
-        event_id=event_id,
+        id=event_id,
         event_type=WorkflowEventType.WORK_ITEM_SELECTED,
         happened_at=happened_at,
         actor=ActorRef(actor_type=ActorType.AGENT, actor_id="codex"),

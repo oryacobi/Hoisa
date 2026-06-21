@@ -1,5 +1,7 @@
 """Bounded task packet records passed to disposable agents."""
 
+from typing import ClassVar
+
 from pydantic import Field
 
 from hoisa.domain.evidence import EvidenceRef, EvidenceRequirement
@@ -22,7 +24,8 @@ class AllowedAction(HoisaModel):
 class TaskPacket(CollectionRoot):
     """Bounded context and authority for one agent run."""
 
-    packet_id: str = Field(min_length=1)
+    ant_collection: ClassVar[str] = "task_packets"
+
     work_item_id: str = Field(min_length=1)
     workflow_stage: WorkflowStage
     target_repo: TargetRepoRef

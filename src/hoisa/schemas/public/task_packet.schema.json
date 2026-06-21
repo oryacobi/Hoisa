@@ -439,9 +439,17 @@
       "type": "array"
     },
     "created_at": {
-      "format": "date-time",
-      "title": "Created At",
-      "type": "string"
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Created At"
     },
     "evidence_requirements": {
       "items": {
@@ -451,14 +459,14 @@
       "title": "Evidence Requirements",
       "type": "array"
     },
+    "id": {
+      "minLength": 1,
+      "title": "Id",
+      "type": "string"
+    },
     "objective": {
       "minLength": 1,
       "title": "Objective",
-      "type": "string"
-    },
-    "packet_id": {
-      "minLength": 1,
-      "title": "Packet Id",
       "type": "string"
     },
     "public_safety": {
@@ -483,9 +491,22 @@
       "$ref": "#/$defs/TargetRepoRef"
     },
     "updated_at": {
-      "format": "date-time",
-      "title": "Updated At",
-      "type": "string"
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Updated At"
+    },
+    "version": {
+      "default": 0,
+      "title": "Version",
+      "type": "integer"
     },
     "work_item_id": {
       "minLength": 1,
@@ -497,9 +518,7 @@
     }
   },
   "required": [
-    "created_at",
-    "updated_at",
-    "packet_id",
+    "id",
     "work_item_id",
     "workflow_stage",
     "target_repo",

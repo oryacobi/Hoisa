@@ -1,10 +1,12 @@
 """Append-only workflow event envelope."""
 
+from typing import ClassVar
+
 from pydantic import Field
 
 from hoisa.domain.actors import ActorRef
 from hoisa.domain.evidence import EvidenceRef
-from hoisa.domain.models import HoisaModel, UtcDatetime
+from hoisa.domain.models import CollectionRoot, HoisaModel, UtcDatetime
 from hoisa.domain.privacy import PublicSafetyClass, RedactionStatus
 from hoisa.domain.provenance import SourceProvenance
 from hoisa.domain.workflow_event_types import WorkflowEventType
@@ -27,10 +29,11 @@ class EventSubject(HoisaModel):
     subject_id: str = Field(min_length=1)
 
 
-class WorkflowEvent(HoisaModel):
+class WorkflowEvent(CollectionRoot):
     """Structured event for audit, causation, and retrospective queries."""
 
-    event_id: str = Field(min_length=1)
+    ant_collection: ClassVar[str] = "workflow_events"
+
     event_type: WorkflowEventType
     happened_at: UtcDatetime
     actor: ActorRef
@@ -45,4 +48,3 @@ class WorkflowEvent(HoisaModel):
     evidence_refs: tuple[EvidenceRef, ...] = ()
     source_provenance: SourceProvenance | None = None
     redaction_status: RedactionStatus
-    schema_version: int = Field(default=1, ge=1)

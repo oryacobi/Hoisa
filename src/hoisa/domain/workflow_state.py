@@ -1,5 +1,7 @@
 """Workflow state vocabulary shared by Hoisa domain records."""
 
+from typing import ClassVar
+
 from pydantic import Field
 
 from hoisa.domain.models import CollectionRoot, HoisaModel, UtcDatetime
@@ -56,6 +58,8 @@ class WorkflowState(HoisaModel):
 
 class WorkflowStateRecord(CollectionRoot):
     """Persisted workflow-state snapshot keyed by work item."""
+
+    ant_collection: ClassVar[str] = "workflow_states"
 
     work_item_id: str = Field(min_length=1)
     state: WorkflowState

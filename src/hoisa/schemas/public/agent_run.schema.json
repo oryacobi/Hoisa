@@ -441,9 +441,17 @@
       "title": "Completed At"
     },
     "created_at": {
-      "format": "date-time",
-      "title": "Created At",
-      "type": "string"
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Created At"
     },
     "evidence_refs": {
       "default": [],
@@ -453,16 +461,16 @@
       "title": "Evidence Refs",
       "type": "array"
     },
+    "id": {
+      "minLength": 1,
+      "title": "Id",
+      "type": "string"
+    },
     "public_safety": {
       "$ref": "#/$defs/PublicSafetyClass"
     },
     "redaction_status": {
       "$ref": "#/$defs/RedactionStatus"
-    },
-    "run_id": {
-      "minLength": 1,
-      "title": "Run Id",
-      "type": "string"
     },
     "runner_profile": {
       "$ref": "#/$defs/RunnerProfile"
@@ -485,9 +493,22 @@
       "$ref": "#/$defs/RunStatus"
     },
     "updated_at": {
-      "format": "date-time",
-      "title": "Updated At",
-      "type": "string"
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Updated At"
+    },
+    "version": {
+      "default": 0,
+      "title": "Version",
+      "type": "integer"
     },
     "work_item_id": {
       "minLength": 1,
@@ -499,9 +520,7 @@
     }
   },
   "required": [
-    "created_at",
-    "updated_at",
-    "run_id",
+    "id",
     "work_item_id",
     "workflow_stage",
     "runner_profile",

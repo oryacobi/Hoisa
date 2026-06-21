@@ -1,5 +1,5 @@
 {
-  "packet_id": "packet_sample_models",
+  "id": "packet_sample_models",
   "created_at": "2026-05-25T13:00:00Z",
   "updated_at": "2026-05-25T13:00:00Z",
   "schema_version": 1,

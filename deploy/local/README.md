@@ -1,8 +1,8 @@
-# Local MongoDB
+# Local MongoDB For Antonic
 
-This directory contains Hoisa's local-only MongoDB development runtime. It is
-for developer-owned private orchestration state and is not a production or
-cloud database path.
+This directory contains Hoisa's local-only MongoDB development runtime for the
+Antonic-backed model and persistence layer. It is for developer-owned private
+orchestration state and is not a production or cloud database path.
 
 ## Setup
 
@@ -13,9 +13,11 @@ cd deploy/local
 cp .env.example .env
 ```
 
-Edit `.env` and replace the placeholder root username and password. The real
-`.env` file is ignored and must not be committed, pasted into issue comments,
-or copied into public logs.
+Edit `.env` and replace the placeholder root username and password. Keep
+`MONGODB_URI` aligned with those values; Antonic reads `MONGODB_URI` and
+`MONGODB_DATABASE` when Hoisa connects to this local instance. The real `.env`
+file is ignored and must not be committed, pasted into issue comments, or
+copied into public logs.
 
 Validate the Compose file without printing expanded secrets:
 
@@ -58,10 +60,19 @@ Use placeholders when documenting or sharing connection strings:
 mongodb://<root-user>:<root-password>@127.0.0.1:27017/hoisa?authSource=admin
 ```
 
+For local development, export the ignored `.env` values before running Hoisa
+code that uses `AntonicPersistenceProvider`:
+
+```bash
+set -a
+source deploy/local/.env
+set +a
+```
+
 The configured root credentials are for local database initialization,
-administration, and health validation only. A future Hoisa application/runtime
-database user should be introduced by a separate approved adapter or schema
-task.
+administration, health validation, and the current developer-local Antonic
+connection only. A future Hoisa application/runtime database user can be
+introduced by a separate approved hardening task.
 
 The MongoDB image applies initialization credentials when the data directory is
 empty. Changing `.env` after `deploy/local/data/mongodb/` already exists does

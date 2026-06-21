@@ -387,9 +387,17 @@
       "type": "array"
     },
     "created_at": {
-      "format": "date-time",
-      "title": "Created At",
-      "type": "string"
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Created At"
     },
     "evidence_refs": {
       "default": [],
@@ -402,6 +410,11 @@
     "goal": {
       "minLength": 1,
       "title": "Goal",
+      "type": "string"
+    },
+    "id": {
+      "minLength": 1,
+      "title": "Id",
       "type": "string"
     },
     "item_type": {
@@ -480,23 +493,29 @@
       "default": null
     },
     "updated_at": {
-      "format": "date-time",
-      "title": "Updated At",
-      "type": "string"
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Updated At"
     },
-    "work_item_id": {
-      "minLength": 1,
-      "title": "Work Item Id",
-      "type": "string"
+    "version": {
+      "default": 0,
+      "title": "Version",
+      "type": "integer"
     },
     "workflow_stage": {
       "$ref": "#/$defs/WorkflowStage"
     }
   },
   "required": [
-    "created_at",
-    "updated_at",
-    "work_item_id",
+    "id",
     "item_type",
     "title",
     "goal",

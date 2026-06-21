@@ -1,9 +1,12 @@
 """Work item domain records shared by application workflows and ports."""
 
+from typing import ClassVar
+
+from antonic import AntIndex
 from pydantic import Field
 
 from hoisa.domain.evidence import EvidenceRef
-from hoisa.domain.models import CollectionRoot, HoisaModel
+from hoisa.domain.models import ASCENDING, CollectionRoot, HoisaModel
 from hoisa.domain.privacy import PublicSafetyClass, RedactionStatus
 from hoisa.domain.provenance import SourceProvenance
 from hoisa.domain.target_repos import TargetRepoRef
@@ -37,7 +40,16 @@ class TrackerIssueRef(HoisaModel):
 class WorkItem(CollectionRoot):
     """Agent-ready unit of Hoisa workflow."""
 
-    work_item_id: str = Field(min_length=1)
+    ant_collection: ClassVar[str] = "work_items"
+    ant_indexes: ClassVar[tuple[AntIndex, ...]] = (
+        AntIndex(
+            [("tracker_issue.provider", ASCENDING), ("tracker_issue.issue_number", ASCENDING)],
+            unique=True,
+            sparse=True,
+            name="uniq_work_item_tracker_issue",
+        ),
+    )
+
     item_type: WorkItemType
     title: str = Field(min_length=1)
     goal: str = Field(min_length=1)

@@ -42,7 +42,7 @@ from hoisa.domain.workflow_state import (
 
 def test_persistence_collection_roots_carry_versioned_public_safe_metadata() -> None:
     project = Project(
-        project_id="project-sample",
+        id="project-sample",
         name="Sample Project",
         summary="Public-safe sample project.",
         created_at=_time(),
@@ -52,7 +52,7 @@ def test_persistence_collection_roots_carry_versioned_public_safe_metadata() -> 
         redaction_status=RedactionStatus.NOT_REQUIRED,
     )
     target_repo = TargetRepo(
-        target_repo_id="repo-sample",
+        id="repo-sample",
         provider=RepositoryProvider.GITHUB,
         owner="example-org",
         name="example-repo",
@@ -73,7 +73,7 @@ def test_persistence_collection_roots_carry_versioned_public_safe_metadata() -> 
 
 def test_source_records_store_summaries_cursors_and_hash_identity() -> None:
     connection = SourceConnection(
-        source_connection_id="source-github",
+        id="source-github",
         project=_project_ref(),
         source_system=SourceSystem.GITHUB,
         display_name="Example GitHub",
@@ -86,8 +86,8 @@ def test_source_records_store_summaries_cursors_and_hash_identity() -> None:
         redaction_status=RedactionStatus.NOT_REQUIRED,
     )
     observation = SourceObservation(
-        observation_id="observation-1",
-        source_connection_id=connection.source_connection_id,
+        id="observation-1",
+        source_connection_id=connection.id,
         external_id="issue-9",
         content_hash=_hash(),
         summary="Issue metadata summary.",
@@ -100,8 +100,8 @@ def test_source_records_store_summaries_cursors_and_hash_identity() -> None:
         redaction_status=RedactionStatus.NOT_REQUIRED,
     )
     cursor = SyncCursor(
-        cursor_id="cursor-1",
-        source_connection_id=connection.source_connection_id,
+        id="cursor-1",
+        source_connection_id=connection.id,
         cursor_name="issues",
         cursor_value="2026-05-25T12:00:00Z",
         created_at=_time(),
@@ -119,7 +119,7 @@ def test_source_records_store_summaries_cursors_and_hash_identity() -> None:
 def test_source_records_reject_missing_required_identity() -> None:
     with pytest.raises(ValidationError):
         SourceObservation(
-            observation_id="",
+            id="",
             source_connection_id="source-github",
             external_id="issue-9",
             content_hash=_hash(),
@@ -135,6 +135,7 @@ def test_source_records_reject_missing_required_identity() -> None:
 
 def test_workflow_state_and_tool_control_records_do_not_authorize_actions() -> None:
     state = WorkflowStateRecord(
+        id="work-1",
         work_item_id="work-1",
         state=WorkflowState(
             stage=WorkflowStage.IMPLEMENTATION,
@@ -154,7 +155,7 @@ def test_workflow_state_and_tool_control_records_do_not_authorize_actions() -> N
         redaction_status=RedactionStatus.NOT_REQUIRED,
     )
     connection = ToolConnection(
-        tool_connection_id="tool-github",
+        id="tool-github",
         project=_project_ref(),
         tool_type="github",
         display_name="GitHub",
@@ -167,7 +168,7 @@ def test_workflow_state_and_tool_control_records_do_not_authorize_actions() -> N
         redaction_status=RedactionStatus.NOT_REQUIRED,
     )
     policy = ToolPolicy(
-        tool_policy_id="policy-1",
+        id="policy-1",
         project=_project_ref(),
         tool_type="github",
         action_type="create_pull_request",
@@ -181,7 +182,7 @@ def test_workflow_state_and_tool_control_records_do_not_authorize_actions() -> N
         redaction_status=RedactionStatus.NOT_REQUIRED,
     )
     request = ActionRequest(
-        action_request_id="action-1",
+        id="action-1",
         project=_project_ref(),
         tool_type="github",
         action_type="create_pull_request",
@@ -195,13 +196,13 @@ def test_workflow_state_and_tool_control_records_do_not_authorize_actions() -> N
         redaction_status=RedactionStatus.NOT_REQUIRED,
     )
     invocation = ToolInvocation(
-        tool_invocation_id="invocation-1",
+        id="invocation-1",
         tool_type="github",
         action_type="create_pull_request",
         status=ToolInvocationStatus.SKIPPED,
         happened_at=_time(),
         summary="Skipped until gate approval.",
-        action_request_id=request.action_request_id,
+        action_request_id=request.id,
         created_at=_time(),
         updated_at=_time(),
         source_provenance=_provenance(),

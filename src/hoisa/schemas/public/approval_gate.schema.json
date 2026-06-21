@@ -356,9 +356,17 @@
       "type": "string"
     },
     "created_at": {
-      "format": "date-time",
-      "title": "Created At",
-      "type": "string"
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Created At"
     },
     "decision": {
       "anyOf": [
@@ -384,16 +392,16 @@
       "title": "Evidence Refs",
       "type": "array"
     },
-    "gate_id": {
-      "minLength": 1,
-      "title": "Gate Id",
-      "type": "string"
-    },
     "gate_status": {
       "$ref": "#/$defs/GateStatus"
     },
     "gate_type": {
       "$ref": "#/$defs/GateType"
+    },
+    "id": {
+      "minLength": 1,
+      "title": "Id",
+      "type": "string"
     },
     "options": {
       "items": {
@@ -425,9 +433,22 @@
       "$ref": "#/$defs/SourceProvenance"
     },
     "updated_at": {
-      "format": "date-time",
-      "title": "Updated At",
-      "type": "string"
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Updated At"
+    },
+    "version": {
+      "default": 0,
+      "title": "Version",
+      "type": "integer"
     },
     "why_human_needed": {
       "minLength": 1,
@@ -444,9 +465,7 @@
     }
   },
   "required": [
-    "created_at",
-    "updated_at",
-    "gate_id",
+    "id",
     "gate_type",
     "gate_status",
     "work_item_id",

@@ -1,5 +1,5 @@
 {
-  "event_id": "event_gate_decided_sample",
+  "id": "event_gate_decided_sample",
   "event_type": "gate.decided",
   "happened_at": "2026-05-25T13:10:00Z",
   "actor": {

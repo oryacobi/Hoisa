@@ -270,13 +270,21 @@
       "$ref": "#/$defs/DirectiveConstraints"
     },
     "created_at": {
-      "format": "date-time",
-      "title": "Created At",
-      "type": "string"
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Created At"
     },
-    "directive_id": {
+    "id": {
       "minLength": 1,
-      "title": "Directive Id",
+      "title": "Id",
       "type": "string"
     },
     "project": {
@@ -320,15 +328,26 @@
       "default": null
     },
     "updated_at": {
-      "format": "date-time",
-      "title": "Updated At",
-      "type": "string"
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Updated At"
+    },
+    "version": {
+      "default": 0,
+      "title": "Version",
+      "type": "integer"
     }
   },
   "required": [
-    "created_at",
-    "updated_at",
-    "directive_id",
+    "id",
     "project",
     "summary",
     "body",

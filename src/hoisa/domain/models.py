@@ -1,9 +1,13 @@
-"""Shared Pydantic model conventions for Hoisa domain records."""
+"""Shared model conventions for Hoisa domain records."""
 
 from datetime import UTC, datetime
-from typing import Annotated
+from typing import Annotated, ClassVar
 
+from antonic import AntDoc
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field
+
+ASCENDING = 1
+DESCENDING = -1
 
 
 def normalize_utc_datetime(value: datetime) -> datetime:
@@ -18,14 +22,17 @@ UtcDatetime = Annotated[datetime, AfterValidator(normalize_utc_datetime)]
 
 
 class HoisaModel(BaseModel):
-    """Base model for Hoisa value objects and boundary records."""
+    """Base model for embedded Hoisa value objects."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
 
-class CollectionRoot(HoisaModel):
-    """Common fields for current-state records stored as collection roots."""
+class CollectionRoot(AntDoc):
+    """Antonic-backed base for durable Hoisa records."""
 
-    created_at: UtcDatetime
-    updated_at: UtcDatetime
+    id: str = Field(min_length=1)
+    created_at: UtcDatetime | None = None
+    updated_at: UtcDatetime | None = None
     schema_version: int = Field(default=1, ge=1)
+
+    ant_id_type: ClassVar[type[str]] = str

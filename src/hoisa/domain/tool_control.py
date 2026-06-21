@@ -1,11 +1,13 @@
 """Tool-control records stored before any external action is performed."""
 
 from enum import StrEnum
+from typing import ClassVar
 
+from antonic import AntIndex
 from pydantic import Field
 
 from hoisa.domain.evidence import EvidenceRef
-from hoisa.domain.models import CollectionRoot, UtcDatetime
+from hoisa.domain.models import ASCENDING, CollectionRoot, UtcDatetime
 from hoisa.domain.privacy import PublicSafetyClass, RedactionStatus
 from hoisa.domain.provenance import SourceProvenance
 from hoisa.domain.target_repos import ProjectRef
@@ -51,7 +53,8 @@ class ToolInvocationStatus(StrEnum):
 class ToolConnection(CollectionRoot):
     """Current-state record for a configured tool integration."""
 
-    tool_connection_id: str = Field(min_length=1)
+    ant_collection: ClassVar[str] = "tool_connections"
+
     project: ProjectRef
     tool_type: str = Field(min_length=1)
     display_name: str = Field(min_length=1)
@@ -65,7 +68,19 @@ class ToolConnection(CollectionRoot):
 class ToolPolicy(CollectionRoot):
     """Policy record for a tool action type."""
 
-    tool_policy_id: str = Field(min_length=1)
+    ant_collection: ClassVar[str] = "tool_policies"
+    ant_indexes: ClassVar[tuple[AntIndex, ...]] = (
+        AntIndex(
+            [
+                ("project.project_id", ASCENDING),
+                ("tool_type", ASCENDING),
+                ("action_type", ASCENDING),
+            ],
+            unique=True,
+            name="uniq_tool_policy_identity",
+        ),
+    )
+
     project: ProjectRef
     tool_type: str = Field(min_length=1)
     action_type: str = Field(min_length=1)
@@ -80,7 +95,8 @@ class ToolPolicy(CollectionRoot):
 class ActionRequest(CollectionRoot):
     """Requested external action, recorded before execution authority exists."""
 
-    action_request_id: str = Field(min_length=1)
+    ant_collection: ClassVar[str] = "action_requests"
+
     project: ProjectRef
     tool_type: str = Field(min_length=1)
     action_type: str = Field(min_length=1)
@@ -98,7 +114,8 @@ class ActionRequest(CollectionRoot):
 class ToolInvocation(CollectionRoot):
     """Audited result of a tool invocation attempt."""
 
-    tool_invocation_id: str = Field(min_length=1)
+    ant_collection: ClassVar[str] = "tool_invocations"
+
     tool_type: str = Field(min_length=1)
     action_type: str = Field(min_length=1)
     status: ToolInvocationStatus

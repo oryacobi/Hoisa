@@ -67,7 +67,7 @@ It should answer:
 Example shape:
 
 ```yaml
-gate_id: gate_20260524_001
+id: gate_20260524_001
 gate_type: plan_approval
 gate_status: waiting
 issue: 12

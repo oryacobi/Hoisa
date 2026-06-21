@@ -1,6 +1,7 @@
 """Approval gate and gate decision records."""
 
 from enum import StrEnum
+from typing import ClassVar
 
 from pydantic import Field
 
@@ -63,7 +64,8 @@ class GateDecision(HoisaModel):
 class ApprovalGate(CollectionRoot):
     """Structured human approval object with exact authority boundaries."""
 
-    gate_id: str = Field(min_length=1)
+    ant_collection: ClassVar[str] = "approval_gates"
+
     gate_type: GateType
     gate_status: GateStatus
     work_item_id: str = Field(min_length=1)

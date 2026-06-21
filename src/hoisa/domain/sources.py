@@ -1,10 +1,12 @@
 """Source observation records reduced into Hoisa workflow state."""
 
 from enum import StrEnum
+from typing import ClassVar
 
+from antonic import AntIndex
 from pydantic import Field
 
-from hoisa.domain.models import CollectionRoot
+from hoisa.domain.models import ASCENDING, CollectionRoot
 from hoisa.domain.privacy import PublicSafetyClass, RedactionStatus
 from hoisa.domain.provenance import ContentHash, SourceProvenance, SourceSystem
 from hoisa.domain.target_repos import ProjectRef, TargetRepoRef
@@ -23,7 +25,8 @@ class SourceConnectionStatus(StrEnum):
 class SourceConnection(CollectionRoot):
     """Configured source Hoisa observes before reducing records."""
 
-    source_connection_id: str = Field(min_length=1)
+    ant_collection: ClassVar[str] = "source_connections"
+
     project: ProjectRef
     source_system: SourceSystem
     display_name: str = Field(min_length=1)
@@ -37,7 +40,19 @@ class SourceConnection(CollectionRoot):
 class SourceObservation(CollectionRoot):
     """Public-safe summary of an external source observation."""
 
-    observation_id: str = Field(min_length=1)
+    ant_collection: ClassVar[str] = "source_observations"
+    ant_indexes: ClassVar[tuple[AntIndex, ...]] = (
+        AntIndex(
+            [
+                ("source_connection_id", ASCENDING),
+                ("external_id", ASCENDING),
+                ("content_hash.value", ASCENDING),
+            ],
+            unique=True,
+            name="uniq_source_observation_identity",
+        ),
+    )
+
     source_connection_id: str = Field(min_length=1)
     external_id: str = Field(min_length=1)
     content_hash: ContentHash
@@ -52,7 +67,15 @@ class SourceObservation(CollectionRoot):
 class SyncCursor(CollectionRoot):
     """Cursor for deterministic incremental source observation."""
 
-    cursor_id: str = Field(min_length=1)
+    ant_collection: ClassVar[str] = "sync_cursors"
+    ant_indexes: ClassVar[tuple[AntIndex, ...]] = (
+        AntIndex(
+            [("source_connection_id", ASCENDING), ("cursor_name", ASCENDING)],
+            unique=True,
+            name="uniq_sync_cursor_identity",
+        ),
+    )
+
     source_connection_id: str = Field(min_length=1)
     cursor_name: str = Field(min_length=1)
     cursor_value: str = Field(min_length=1)
