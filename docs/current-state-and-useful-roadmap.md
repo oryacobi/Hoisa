@@ -54,6 +54,9 @@ What exists today:
 | Durable records | The core nouns exist as typed domain records: directives, work items, workflow state, gates, task packets, runs, evidence, source observations, tool-control records, and events. | `src/hoisa/domain/` |
 | Pure workflow policy | Stage transitions, next-work selection, and issue quality/risk/trust checks are implemented as testable services. | `src/hoisa/domain/workflow_transitions.py`, `src/hoisa/app/workflows/select_next_work.py`, `src/hoisa/app/services/issue_quality.py` |
 | Persistence | Hoisa has a persistence port, workflow query helpers, an in-memory adapter, and an Antonic/Mongo adapter. | `src/hoisa/ports/persistence.py`, `src/hoisa/adapters/persistence/` |
+| Local DB bootstrap | A fresh local MongoDB can be reinitialized from ignored local config and seeded with GitHub repository issue connection records. | `deploy/local/README.md`, `scripts/github/bootstrap_connection.py` |
+| GitHub repo issue connection | The bootstrap validates GitHub App repository metadata and issue read access, then stores `TargetRepo`, `SourceConnection`, `SyncCursor`, `ToolConnection`, and `ToolPolicy` records. It does not import issues. | `src/hoisa/app/services/github_connection_bootstrap.py`, `src/hoisa/adapters/external_sources/github.py` |
+| DB inspection | Codex sessions can inspect the local Hoisa database through a read-only MongoDB MCP server named `mongodb_hoisa_local` when the user-level MCP config is loaded. | `deploy/local/README.md` |
 | Public schemas | Seven public boundary records have JSON schemas and fixtures. | `src/hoisa/schemas/public/`, `tests/fixtures/public/` |
 | Coding handoff | A `TaskPacket` can be rendered into deterministic coding-runner input. | `src/hoisa/app/services/coding_handoff.py` |
 | Runner proof of concept | A local Docker POC can run one command and persist compact `AgentRun` evidence plus private raw output in a `WorkflowEvent`. | `scripts/poc_docker_agent_run.py`, `deploy/local/` |
@@ -68,7 +71,6 @@ What does not exist yet:
 - no real approval-gate lifecycle service with persisted creation, rendering,
   decision, invalidation, and audit behavior;
 - no runner port implementation behind the Docker POC;
-- no tool-policy enforcement path for external writes;
 - no product CLI or service loop; the current operational commands live in
   repo-local scripts;
 - no status surface that answers "what needs me?", "what is running?", and
@@ -178,14 +180,14 @@ Goal: make Hoisa state real before running agents.
 
 **Task 1.1: Read-only source sync**
 
-- Goal: read GitHub issue, Project, PR, and check facts into public-safe
+- Goal: read repository issues from a configured GitHub repo connection into
   `SourceObservation` and `SyncCursor` records.
 - Likely files: `src/hoisa/ports/source_sync.py`, `src/hoisa/domain/sources.py`,
   `src/hoisa/adapters/`, `tests/unit/adapters/`.
 - Acceptance: sync is read-only, idempotent, content-hashed, cursor-backed, and
   tested with fake clients.
-- Out of scope: tracker writes, PR creation, runner execution, importing the
-  repo-local helper as product code.
+- Out of scope: tracker mutation, runner execution, importing the repo-local
+  helper as product code.
 - Checks: full repo checks plus focused adapter tests.
 - Risk and review route: high risk, review both plan and implementation.
 
@@ -196,9 +198,8 @@ Goal: make Hoisa state real before running agents.
   quality status.
 - Likely files: `src/hoisa/app/services/`, `src/hoisa/domain/work_items.py`,
   `src/hoisa/domain/workflow_state.py`, `src/hoisa/app/services/issue_quality.py`.
-- Acceptance: reducer is deterministic, fixture-driven, and does not perform
-  external writes.
-- Out of scope: gates, runners, comments, PRs, continuous loops.
+- Acceptance: reducer is deterministic, fixture-driven, and side-effect-free.
+- Out of scope: gates, runners, comments, continuous loops.
 - Checks: full repo checks plus fixture integration tests.
 - Risk and review route: medium risk, review both.
 
@@ -283,7 +284,7 @@ Goal: hand one approved packet to one disposable runner and record what happened
   `src/hoisa/app/services/`.
 - Acceptance: success, failure, timeout, missing evidence, and check failure each
   produce explicit events and next states.
-- Out of scope: automatic repair loops and PR writes.
+- Out of scope: automatic repair loops and tracker mutation.
 - Checks: full repo checks plus fixture-driven transition tests.
 - Risk and review route: medium risk, review both.
 
@@ -295,7 +296,7 @@ issue.
 **Task 4.1: `loop --once --dry-run`**
 
 - Goal: run sync, reduction, quality/risk/trust evaluation, selection, gate
-  planning, and status without executing a runner or writing external systems.
+  planning, and status without executing a runner or mutating trackers.
 - Likely files: `src/hoisa/cli/`, `src/hoisa/app/workflows/`,
   `src/hoisa/ports/persistence.py`, tests.
 - Acceptance: dry-run output explains selected work, skipped work, waiting gates,
@@ -328,42 +329,11 @@ issue.
 - Checks: full repo checks plus fake-clock/status tests.
 - Risk and review route: medium risk, review both.
 
-### Phase 5: Controlled External Actions
-
-Goal: let Hoisa act on external systems only through explicit policy and audit
-records.
-
-**Task 5.1: Tool policy enforcement**
-
-- Goal: enforce `ToolPolicy` before external writes and record `ActionRequest`
-  and `ToolInvocation` outcomes.
-- Likely files: `src/hoisa/domain/tool_control.py`,
-  `src/hoisa/ports/external_action.py`, `src/hoisa/ports/persistence.py`,
-  app service tests.
-- Acceptance: privileged or consequential actions require policy approval;
-  allowed, denied, gated, failed, and completed invocations are queryable.
-- Out of scope: every possible external tool, production credentials.
-- Checks: full repo checks plus policy matrix tests.
-- Risk and review route: high risk, review both.
-
-**Task 5.2: Product GitHub write adapter**
-
-- Goal: add audited product-runtime writes for comments, field updates, and PR
-  handoff without importing `scripts/github/agent_workflow.py`.
-- Likely files: `src/hoisa/ports/tracker.py`, `src/hoisa/adapters/tracker/`,
-  GitHub adapter tests.
-- Acceptance: writes are explicit, policy-checked, fake-client tested, and
-  recorded as action requests, invocations, evidence, and events.
-- Out of scope: replacing the contributor helper in one step, broad project
-  setup, autonomous merge.
-- Checks: full repo checks.
-- Risk and review route: high risk, review both.
-
-### Phase 6: Continuous Operation And Learning
+### Phase 5: Continuous Operation And Learning
 
 Goal: move from a trustworthy one-issue lane to a loop that can keep working.
 
-**Task 6.1: Continuous loop supervisor**
+**Task 5.1: Continuous loop supervisor**
 
 - Goal: repeatedly sync, apply gate decisions, reset or report stale leases,
   select eligible work, dispatch steps, record evidence, and wait quietly when
@@ -377,7 +347,7 @@ Goal: move from a trustworthy one-issue lane to a loop that can keep working.
 - Checks: full repo checks plus supervisor tests.
 - Risk and review route: high risk, review both.
 
-**Task 6.2: Workflow retrospectives**
+**Task 5.2: Workflow retrospectives**
 
 - Goal: query workflow history and propose process improvements as normal Hoisa
   work.
@@ -391,7 +361,7 @@ Goal: move from a trustworthy one-issue lane to a loop that can keep working.
 - Checks: full repo checks plus fixture history tests.
 - Risk and review route: medium risk, review both.
 
-**Task 6.3: General work-shape model**
+**Task 5.3: General work-shape model**
 
 - Goal: after the coding lane works, generalize planning, review, repair,
   research, and retrospective steps into reusable work shapes.
@@ -411,7 +381,7 @@ Do not lead with these:
 - voice or mobile approval channels;
 - autonomous merge;
 - broad multi-repo scheduling;
-- full MCP host/server ambitions;
+- broad tool-hosting platform work;
 - private pilot details;
 - raw terminal streaming as the main product surface;
 - a generic graph framework before the one-issue coding lane proves the
@@ -429,8 +399,8 @@ exist.
 - Human attention: fewer ad hoc status questions, fewer transcript reads, more
   decisions made from gate cards.
 - Agent focus: smaller packets, clearer authority, less unrelated context.
-- Safety: no private target-repo content in public artifacts, no external writes
-  without policy and audit records.
+- Safety: no private target-repo content in public artifacts; privileged tool
+  actions stay policy-checked and audited.
 - Throughput: eligible work continues while unrelated items wait for humans.
 - Quality: fewer implementation rewrites caused by vague issues, missing plans,
   weak evidence, or unvalidated check failures.

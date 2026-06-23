@@ -148,7 +148,7 @@ orchestrator:
 - `SourceObservation` and `SyncCursor` are modeled, but source sync/reduction
   is not yet implemented behind `ports/source_sync.py`.
 - `TaskPacket` rendering exists, but the Docker POC is not yet wired to packet
-  creation, work selection, gates, PR creation, checks, or a production runner
+  creation, work selection, gates, tracker mutation, or a production runner
   port.
 - Tool-control records are durable and queryable, but policy enforcement and
   external action execution are not yet implemented behind
@@ -165,7 +165,7 @@ run summaries, records private raw output when needed, appends workflow events,
 and transitions work after evidence exists.
 
 The coding runner receives only the rendered task-packet fields. It should not
-need to understand GitHub Project fields, issue queue selection, approval gate
+need to understand tracker-board fields, issue queue selection, approval gate
 mechanics, helper commands, raw runner payloads, or broader planning history.
 
 The handoff renderer in `hoisa.app.services.coding_handoff` copies only

@@ -9,6 +9,7 @@ from hoisa.domain.privacy import PublicSafetyClass, RedactionStatus
 from hoisa.domain.provenance import ContentHash, SourceProvenance, SourceSystem
 from hoisa.domain.sources import (
     SourceConnection,
+    SourceConnectionResourceType,
     SourceConnectionStatus,
     SourceObservation,
     SyncCursor,
@@ -81,6 +82,10 @@ def test_source_records_store_summaries_cursors_and_hash_identity() -> None:
         display_name="Example GitHub",
         status=SourceConnectionStatus.ACTIVE,
         target_repo=_target_repo_ref(),
+        resource_type=SourceConnectionResourceType.GITHUB_REPOSITORY_ISSUES,
+        external_node_id=None,
+        display_url="https://github.com/example-org/example-repo",
+        credential_ref="local:github-example-workflow",
         created_at=_time(),
         updated_at=_time(),
         source_provenance=_provenance(source_system=SourceSystem.GITHUB),
@@ -117,6 +122,8 @@ def test_source_records_store_summaries_cursors_and_hash_identity() -> None:
 
     assert observation.content_hash.value == "abc123"
     assert observation.payload["issue_number"] == 9
+    assert connection.resource_type == SourceConnectionResourceType.GITHUB_REPOSITORY_ISSUES
+    assert connection.credential_ref == "local:github-example-workflow"
     assert cursor.cursor_name == "issues"
 
 
@@ -164,6 +171,7 @@ def test_workflow_state_and_tool_control_records_do_not_authorize_actions() -> N
         tool_type="github",
         display_name="GitHub",
         status=ToolConnectionStatus.ACTIVE,
+        credential_ref="local:github-example-workflow",
         allowed_action_summaries=("read issues",),
         created_at=_time(),
         updated_at=_time(),
@@ -215,6 +223,7 @@ def test_workflow_state_and_tool_control_records_do_not_authorize_actions() -> N
     )
 
     assert state.state.lease is not None
+    assert connection.credential_ref == "local:github-example-workflow"
     assert connection.allowed_action_summaries == ("read issues",)
     assert policy.decision == ToolPolicyDecision.REQUIRE_GATE
     assert request.status == ActionRequestStatus.GATED

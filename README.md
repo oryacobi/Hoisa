@@ -11,7 +11,11 @@ context.
 ## Current Status
 
 The project is in its first research pass and is being set up to develop
-itself through its own agent workflow. Initial artifacts:
+itself through its own agent workflow. The local development path can now
+reinitialize MongoDB and bootstrap a GitHub repository issue connection into a
+clean database.
+
+Initial artifacts:
 
 - [Vision](docs/vision.md)
 - [Human-Agent Project Orchestration Research](docs/research/human-agent-project-orchestration.md)

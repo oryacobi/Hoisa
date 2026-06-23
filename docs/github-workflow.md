@@ -30,6 +30,10 @@ workflow engine until the local DB-backed service replaces it. Agents should use
 the helper for routine workflow operations instead of reconstructing state from
 GitHub screens or using connector prompts.
 
+This helper is contributor tooling for this repository. It is separate from
+`scripts/github/bootstrap_connection.py`, which seeds local DB records for a
+repository issue source and does not require project-board access.
+
 The helper defaults to owner `oryacobi`, repo `Hoisa`, Project `Hoisa`, and
 approval assignee `oryacobi`.
 
