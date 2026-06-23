@@ -5,7 +5,9 @@ Date: 2026-06-21
 This document summarizes what Hoisa can do today, proposes a simple end-to-end
 development flow that demonstrates real value, and suggests the big tasks that
 would turn the project from a strong skeleton into a useful operating system for
-human-agent software work.
+human-agent work. Coding remains the first concrete lane, but the product model
+should be generic enough to shape planning, review, execution, research,
+repair, and other agent work into ordered pieces.
 
 It assumes no backward compatibility requirement for early product-facing
 artifacts. Existing public schemas, field names, product command names, and
@@ -38,22 +40,28 @@ It does have the right bones:
 - tests that encode many of the important human/agent boundaries.
 
 The smallest valuable demo should not be a dashboard or a fully autonomous
-runner. It should be a single-repo, manual-assisted Hoisa loop:
+runner. It should be a single-repo, manual-assisted Hoisa loop that proves the
+generic pattern: humans give directives and approve authority; Hoisa shapes the
+work into bounded agent steps; agents produce durable evidence; humans are
+interrupted only at explicit gates.
 
 1. read a well-formed GitHub issue;
 2. assess readiness, risk, and trust;
-3. create or accept a plan;
-4. present one exact human approval gate;
-5. render an approved task packet;
-6. run one bounded coding-agent attempt;
-7. persist compact evidence and private raw output;
-8. open or hand off a PR;
-9. show a status summary that explains what happened and what human decision is
+3. shape the next planning, review, or execution step;
+4. create or accept a durable plan;
+5. present one exact human approval gate;
+6. render an approved task packet;
+7. run one bounded coding-agent attempt;
+8. persist compact evidence and private raw output;
+9. open or hand off a PR;
+10. show a status summary that explains what happened and what human decision is
    still needed.
 
 That flow would demonstrate Hoisa's real value: the human does not babysit an
 agent chat. The human gives direction, approves exact authority when needed, and
-reviews evidence. Hoisa owns the boring coordination layer between those moments.
+reviews evidence. Hoisa owns the coordination layer between those moments, and
+the same layer should later support non-coding workflows by changing the work
+shapes instead of rewriting the system.
 
 ## Current Component Deep Dive
 
@@ -77,6 +85,8 @@ The strongest existing product decisions are:
 
 - human approval is a small structured gate, not an open-ended transcript;
 - agent runs are disposable and bounded;
+- agent work should be shaped into explicit steps with inputs, authority,
+  outputs, evidence, and transition rules;
 - planner, reviewer, implementer, fixer, and retrospective researcher are
   separate roles;
 - mutable workflow state belongs in tracker metadata or durable records, not
@@ -117,7 +127,10 @@ orchestration system needs.
 Gap: most domain records are not yet connected into a running application
 workflow. There is no canonical path that starts with a directive or tracker
 observation and ends with persisted work item, gate, packet, run, evidence, and
-next state.
+next state. There is also no first-class "work shape" concept yet: a record that
+lets Hoisa describe planner drafting, coding execution, fresh review, repair, or
+research as the same kind of bounded agent step with different inputs, outputs,
+authority, and gate policy.
 
 ### Application Services
 
@@ -157,7 +170,10 @@ runner output, secrets, tokens, and local paths.
 
 Gap: there is no app-level orchestrator that composes these services. Selection,
 issue quality, task-packet rendering, runner execution, evidence persistence,
-and gate transitions remain separate pieces.
+and gate transitions remain separate pieces. `coding_handoff.py` is the right
+first renderer, but the product still needs a generic step-to-packet path so
+different work shapes can use different renderers without changing workflow
+authority rules.
 
 ### Ports And Adapters
 
@@ -364,7 +380,77 @@ The roadmap should keep those worlds distinct: preserve the contributor workflow
 that helps build Hoisa, while building the Hoisa product runtime through package
 services and adapters.
 
-## Proposed End-To-End Demo Flow
+## Generic Work Shape
+
+The product should treat planner drafting, coding execution, fresh plan review,
+fresh PR review, repair, research, and retrospective analysis as examples of one
+generic thing: shaped agent work.
+
+A shaped agent work step is a bounded unit with:
+
+| Question | Work-shape field |
+| --- | --- |
+| What is the step trying to decide or produce? | objective and expected outputs |
+| What evidence and context may the agent see? | input refs and context budget |
+| Which role or runner should do it? | actor role and runner profile |
+| What authority does the step have? | allowed actions and forbidden actions |
+| What should come back? | evidence requirements and output records |
+| What can happen next? | transition rules and follow-up gate policy |
+| When does a human need to decide? | gate trigger, gate options, and authority granted |
+
+Examples:
+
+- "Planner drafts durable plan" is a planning work shape: issue/directive
+  substance in, durable plan and risk/review recommendation out.
+- "Coding runner executes in sandbox" is an execution work shape: approved task
+  packet in, code/docs changes, checks, run summary, and evidence out.
+- "Fresh reviewer reviews plan" is a review work shape: issue, plan, policy,
+  and relevant docs in, ready/request-changes verdict out.
+- "Fresh reviewer reviews PR evidence" is another review work shape: approved
+  plan, diff, checks, PR body, and comments in, merge-readiness or repair
+  feedback out.
+
+This is the level where Hoisa should eventually let developers compose flows.
+The coding workflow should be one preset graph, not the product's only mental
+model. A non-coding project could replace "coding runner" with "research
+runner", "spreadsheet analyst", "support triage drafter", or "release note
+writer" while keeping the same gates, evidence records, budgets, and event
+history.
+
+Human interaction is the ping-pong boundary between these pieces:
+
+1. A human directive creates or changes intent.
+2. Hoisa decomposes intent into shaped work steps.
+3. An agent step produces a durable artifact or verdict.
+4. Fixed policy decides whether another agent step is enough or a human gate is
+   required.
+5. A human gate grants exact next-step authority, requests changes, requests
+   fresh review, or defers.
+6. Hoisa records the decision and schedules the next eligible shaped step.
+
+That model is more important than any one stage name. The first implementation
+can still use planning, review, approval, implementation, and PR review, but the
+underlying records should make those stages configurable compositions of
+bounded work.
+
+```mermaid
+flowchart TD
+    A["Human directive or tracker change"] --> B["Hoisa shapes a work graph"]
+    B --> C["Agent work step"]
+    C --> D["Durable artifact, verdict, or evidence"]
+    D --> E{"Policy: enough evidence?"}
+    E -->|Needs another agent| F["Next agent work step"]
+    F --> D
+    E -->|Needs human authority| G["Human gate"]
+    G -->|Approve exact authority| H["Schedule next shaped step"]
+    G -->|Request changes| B
+    G -->|Request fresh review| F
+    G -->|Defer| I["Wait without blocking unrelated work"]
+    H --> C
+    D --> J["Workflow events and status"]
+```
+
+## Proposed Coding Demo As A Work Graph
 
 The first useful flow should be a single-repo, one-issue development loop. It
 can still be invoked manually with a `--once` command. It does not need to be an
@@ -375,21 +461,21 @@ flowchart TD
     A["Human direction in tracker"] --> B["Source sync reads issue/project state"]
     B --> C["Hoisa reduces source observation to work item"]
     C --> D["Issue quality, risk, and trust check"]
-    D --> E{"Agent-owned stage?"}
-    E -->|Planning| F["Planner drafts durable plan"]
-    F --> G{"Review route needs agent review?"}
-    G -->|Yes| H["Fresh reviewer reviews plan"]
-    G -->|No| I["Create plan approval gate"]
+    D --> E["Shape planning step"]
+    E --> F["Agent step: planner drafts durable plan"]
+    F --> G{"Need plan review?"}
+    G -->|Yes| H["Agent step: fresh reviewer reviews plan"]
+    G -->|No| I["Plan approval gate"]
     H --> I
-    I --> J["Human makes exact gate decision"]
-    J -->|Approve| K["Build task packet"]
-    J -->|Request changes| F
-    J -->|Request review| H
-    K --> L["Render bounded runner input"]
-    L --> M["Coding runner executes in sandbox"]
+    I --> J{"Human decision"}
+    J -->|Approve exact plan authority| K["Shape implementation step"]
+    J -->|Request changes| E
+    J -->|Request fresh review| H
+    K --> L["Task packet and bounded runner input"]
+    L --> M["Agent step: coding runner executes in sandbox"]
     M --> N["Persist run, evidence, and events"]
-    N --> O{"Implementation review needed?"}
-    O -->|Yes| P["Fresh reviewer reviews PR evidence"]
+    N --> O{"Need implementation review?"}
+    O -->|Yes| P["Agent step: fresh reviewer reviews PR evidence"]
     O -->|No| Q["Human merge or verification gate"]
     P --> Q
     Q --> R["Status and retrospective event trail"]
@@ -403,7 +489,10 @@ intent and priorities. The human does not need to define agent prompts, runner
 commands, branch names, or every workflow transition.
 
 For the first demo, a GitHub issue is enough. Later, `Directive` should become
-the generic intake record for vague human direction before decomposition.
+the generic intake record for vague human direction before decomposition. Human
+direction can also name constraints for the shape of work: which approvals are
+mandatory, which roles must be fresh-context, which side effects are forbidden,
+and how small the next pieces should be.
 
 ### Step 2: Source Sync And Reduction
 
@@ -437,9 +526,9 @@ should not start a long chat.
 
 ### Step 4: Planning
 
-The planner agent receives a bounded planning packet: issue substance, relevant
-repo docs, likely files, quality/risk report, and plan template. It produces a
-durable plan artifact.
+The planner step is one shaped work instance. The planner agent receives a
+bounded planning packet: issue substance, relevant repo docs, likely files,
+quality/risk report, and plan template. It produces a durable plan artifact.
 
 The planner can recommend a review route, risk level, and implementation
 boundaries, but it does not approve its own plan. It also does not get broad
@@ -447,9 +536,9 @@ permission to implement while planning.
 
 ### Step 5: Fresh Review When Needed
 
-If `ReviewRoute` requires plan review, a separate reviewer agent reads durable
-evidence, not the planner's chat transcript. The reviewer can say ready or
-request changes.
+If `ReviewRoute` requires plan review, Hoisa schedules a separate review-shaped
+work step. The reviewer agent reads durable evidence, not the planner's chat
+transcript. The reviewer can say ready or request changes.
 
 The reviewer is an evidence filter. The reviewer is not the human approver.
 
@@ -474,7 +563,8 @@ session to make this decision.
 
 ### Step 7: Task Packet
 
-After approval, fixed logic creates a `TaskPacket`. It should include:
+After approval, fixed logic creates a `TaskPacket` for the next shaped work
+step. It should include:
 
 - objective;
 - workflow stage;
@@ -486,13 +576,14 @@ After approval, fixed logic creates a `TaskPacket`. It should include:
 - budget;
 - expected evidence.
 
-This is the main contract between Hoisa and the coding agent. It lets Hoisa keep
-workflow authority while giving the runner only what it needs to execute.
+This is the main contract between Hoisa and the runner. For the first demo, that
+runner is a coding agent. Later, the same packet pattern should support other
+role-specific runners without giving them workflow authority.
 
 ### Step 8: Runner Execution
 
-The runner receives rendered task-packet input and sandbox configuration. It
-does not receive:
+The runner execution step receives rendered task-packet input and sandbox
+configuration. It does not receive:
 
 - GitHub Project routing rules;
 - approval gate mechanics;
@@ -540,6 +631,7 @@ The product lives or dies on this line.
 | Responsibility | Owner | Why |
 | --- | --- | --- |
 | Product direction and priority | Human | Agents can refine intent, but they should not decide what matters. |
+| Work-graph shaping | Fixed Hoisa logic, with human directives and agent recommendations | Large flows need deterministic decomposition into bounded, reviewable steps. |
 | Issue quality checks | Fixed Hoisa logic | This should be deterministic, testable, and consistent. |
 | Risk and trust classification | Fixed Hoisa logic, with agent summaries allowed | Humans should see recommendations, not recalculate policy. |
 | Planning draft | Planner agent | This is agent labor, bounded by issue context and repo instructions. |
@@ -581,6 +673,8 @@ Recommended simplifications:
   with product policy or hidden inside contributor tooling.
 - Replace script-level POC runner coupling with a real runner port and a Docker
   Codex adapter.
+- Avoid baking coding-specific stage names into product boundaries that should
+  operate on generic work shapes and graph edges.
 - Treat public schemas as versionable but breakable until one complete demo
   flow emits them.
 - Keep issue comments short and evidence-linked; stop encoding mutable workflow
@@ -595,7 +689,41 @@ preserving accidental interfaces.
 
 ## Big Tasks To Make Hoisa Useful
 
-### 1. Build The First Integrated Single-Issue Loop
+### 1. Define The Work-Shape Graph Model
+
+Goal: make planner, reviewer, runner, repair, research, and approval steps
+composable so Hoisa can divide large flows into the right-sized ordered pieces.
+
+Suggested shape:
+
+- define a work-shape record for objective, actor role, input refs, output
+  records, allowed actions, forbidden actions, runner profile, budget, evidence
+  requirements, and transition rules;
+- define a work-graph record that connects agent steps, fixed-policy checks,
+  human gates, and terminal outcomes;
+- express the current coding workflow as a preset graph: planning, optional
+  plan review, plan approval, implementation, optional implementation review,
+  and human verification or merge readiness;
+- support loopbacks for request changes, request fresh review, stale evidence,
+  failed checks, and deferred gates;
+- keep the graph generic enough for non-coding presets while keeping the first
+  preset focused on GitHub-backed coding work.
+
+Acceptance criteria:
+
+- planner drafting, coding execution, fresh plan review, and fresh PR evidence
+  review can be represented by the same work-shape structure;
+- a coding preset graph can render the existing planning, review, approval, and
+  implementation lane without hard-coding those stages into the runner;
+- every edge that grants new authority names the human gate or fixed policy that
+  allowed it;
+- request changes, request fresh review, approve, and defer paths are explicit;
+- tests or fixtures prove a large directive can be decomposed into ordered
+  shaped steps without embedding private target-repo content.
+
+This task makes Hoisa a flow-shaping system, not just a coding workflow script.
+
+### 2. Build The First Integrated Single-Issue Loop
 
 Goal: create one command path that coordinates a single issue from tracker state
 to plan gate, task packet, runner attempt, persisted evidence, and next status.
@@ -621,7 +749,7 @@ Acceptance criteria:
 
 This task turns the current pieces into a product demonstration.
 
-### 2. Build Product GitHub Services And Adapters
+### 3. Build Product GitHub Services And Adapters
 
 Goal: build the product GitHub integration through package services and adapters
 without confusing it with the repo-local contributor helper.
@@ -649,7 +777,7 @@ Acceptance criteria:
 
 This task makes Hoisa maintainable.
 
-### 3. Implement Real Gate Lifecycle And Human Decision Surfaces
+### 4. Implement Real Gate Lifecycle And Human Decision Surfaces
 
 Goal: make human gates durable, exact, and easy to answer.
 
@@ -673,7 +801,7 @@ Acceptance criteria:
 
 This task makes the human interaction model real.
 
-### 4. Add A Runner Port, Docker Codex Adapter, And Evidence Pipeline
+### 5. Add A Runner Port, Docker Codex Adapter, And Evidence Pipeline
 
 Goal: turn the Docker Codex POC into a controlled execution backend.
 
@@ -697,7 +825,7 @@ Acceptance criteria:
 
 This task makes Hoisa able to perform bounded work, not just coordinate plans.
 
-### 5. Create Status, Lease, And Retrospective Workflows
+### 6. Create Status, Lease, And Retrospective Workflows
 
 Goal: make Hoisa useful as an operations layer, not just a run launcher.
 
@@ -721,7 +849,7 @@ Acceptance criteria:
 
 This task proves the project-memory part of the vision.
 
-### 6. Harden Public/Private Safety As A Product Feature
+### 7. Harden Public/Private Safety As A Product Feature
 
 Goal: make privacy boundaries hard to accidentally violate.
 
@@ -748,22 +876,25 @@ projects.
 
 ## Suggested Milestone Order
 
-1. **Manual integrated loop**: wire existing components for one issue and one
+1. **Work-shape graph model**: define the generic step and graph records, then
+   express the coding workflow as the first preset.
+2. **Manual integrated loop**: wire existing components for one issue and one
    Docker runner attempt, even if invoked with a manual `--once` command.
-2. **Product GitHub integration**: implement package services and adapters for
+3. **Product GitHub integration**: implement package services and adapters for
    GitHub-backed source sync, tracker writes, gates, and PR evidence while
    keeping contributor tooling conceptually separate.
-3. **Durable gate system**: create, render, decide, expire, and audit gates.
-4. **Runner and evidence pipeline**: stabilize the Docker Codex adapter and the
+4. **Durable gate system**: create, render, decide, expire, and audit gates.
+5. **Runner and evidence pipeline**: stabilize the Docker Codex adapter and the
    run/evidence/event output contract.
-5. **Status and retrospective**: make the system observable enough that a human
+6. **Status and retrospective**: make the system observable enough that a human
    can trust it without babysitting it.
-6. **Continuous loop**: only after the previous pieces work, add the loop that
+7. **Continuous loop**: only after the previous pieces work, add the loop that
    keeps selecting other eligible work while gated items wait.
 
 The continuous loop is deliberately last. The first valuable product is not an
 unattended daemon; it is a trustworthy, evidence-backed development lane that
-reduces human orchestration effort for one real issue.
+reduces human orchestration effort for one real issue while proving the generic
+shaped-work grammar.
 
 ## First Demo Narrative
 
@@ -771,16 +902,19 @@ A good public demo would look like this:
 
 1. A human opens a small Hoisa issue with goal, context, acceptance criteria,
    out of scope, and checks.
-2. Hoisa syncs it, reports it is ready, and selects planning.
-3. A planner produces a durable plan.
-4. Hoisa creates a plan approval gate that says exactly what approving allows.
-5. The human approves the plan.
-6. Hoisa creates a task packet and runs one Docker Codex attempt with only that
-   packet.
-7. The runner makes a tiny code or docs change and runs focused checks.
-8. Hoisa stores compact run evidence and private raw output.
-9. Hoisa opens or hands off a PR with evidence links and risk notes.
-10. The status command shows the item waiting for review or merge readiness,
+2. Hoisa syncs it, reports it is ready, and maps it to the coding work-shape
+   preset.
+3. A planner-shaped agent step produces a durable plan.
+4. A fresh reviewer-shaped step reviews the plan if the route requires it.
+5. Hoisa creates a plan approval gate that says exactly what approving allows.
+6. The human approves the plan.
+7. Hoisa creates an implementation task packet and runs one Docker Codex attempt
+   with only that packet.
+8. The runner makes a tiny code or docs change and runs focused checks.
+9. Hoisa stores compact run evidence and private raw output.
+10. A fresh reviewer-shaped step reviews PR evidence if required.
+11. Hoisa opens or hands off a PR with evidence links and risk notes.
+12. The status command shows the item waiting for review or merge readiness,
     while unrelated eligible work could continue in the future.
 
 That demo would prove the core thesis without pretending the project is already
@@ -790,12 +924,12 @@ fully autonomous.
 
 When these tasks are complete, Hoisa will be useful because it will:
 
-- convert human direction into bounded work;
+- convert human direction into bounded work graphs;
 - make agent work resumable and inspectable through durable records;
 - protect human attention with small gates;
 - keep raw private context out of public artifacts;
-- dispatch existing coding agents without giving them project-management
-  authority;
+- dispatch existing coding agents as the first runner family without giving
+  them project-management authority;
 - collect enough workflow history to improve the process.
 
 The practical product promise is:
