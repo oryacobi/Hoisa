@@ -7,12 +7,14 @@ development flow that demonstrates real value, and suggests the big tasks that
 would turn the project from a strong skeleton into a useful operating system for
 human-agent software work.
 
-It assumes no backward compatibility requirement. Existing public schemas,
-helper commands, field names, and local POC interfaces can be changed, renamed,
-or deleted when doing so makes the first useful system simpler. The important
-constraint is not compatibility with early artifacts; it is preserving the
-product thesis in `docs/vision.md`: durable project state, bounded agent work,
-minimal human gates, public/private safety, and evidence-backed decisions.
+It assumes no backward compatibility requirement for early product-facing
+artifacts. Existing public schemas, field names, product command names, and
+local POC interfaces can be changed, renamed, or deleted when doing so makes the
+first useful system simpler. The important constraint is not compatibility with
+early artifacts; it is preserving the product thesis in `docs/vision.md`:
+durable project state, bounded agent work, minimal human gates, public/private
+safety, and evidence-backed decisions. Repo-local contributor tooling, such as
+the GitHub workflow helper, is a separate operational surface.
 
 ## Short Version
 
@@ -29,7 +31,8 @@ It does have the right bones:
   and task-packet rendering;
 - public JSON schemas and fixtures for the core boundary records;
 - persistence contracts plus in-memory and Antonic/Mongo-backed storage;
-- a large GitHub helper script that acts as today's temporary workflow engine;
+- a GitHub workflow helper used by contributors and agents to operate Hoisa's
+  current repository workflow;
 - a Docker Codex POC that can run one bounded local command and persist compact
   run evidence plus private raw output;
 - tests that encode many of the important human/agent boundaries.
@@ -198,7 +201,9 @@ system can be operational.
 
 Existing file: `scripts/github/agent_workflow.py`
 
-This script is the closest thing Hoisa has to an operating system today. It can:
+This script is not Hoisa's product runtime, not a draft Hoisa adapter, and not
+one of the repo skills. It is repo-local contributor tooling that helps humans
+and agents perform the current Hoisa development workflow against GitHub. It can:
 
 - read GitHub issues, comments, PRs, checks, review comments, and Project items;
 - create or patch Project workflow fields;
@@ -215,15 +220,16 @@ This script is the closest thing Hoisa has to an operating system today. It can:
 - commit and push selected paths;
 - mark implementation handoff.
 
-It is valuable because it proves the GitHub-backed workflow can be operated by
-agents today. It is also a liability because too much product logic and GitHub
-side-effect logic live in one script.
+It is valuable because it lets work on Hoisa move safely today. It also provides
+evidence about which GitHub operations, workflow summaries, and handoff commands
+are useful in practice.
 
-Gap: this helper should be treated as a temporary bridge. Since backward
-compatibility is not required, Hoisa can simplify aggressively by moving stable
-policy into package services and turning GitHub operations into adapters.
-Legacy compatibility shims, such as old plan-state handling, should disappear
-once the first integrated loop exists.
+Boundary: the roadmap should not confuse this helper with Hoisa itself. Product
+code can reuse lessons and already-extracted pure policies from the helper, but
+the helper can remain contributor tooling. A future Hoisa GitHub integration
+should be built as package services and adapters with explicit product
+contracts, not by treating `scripts/github/agent_workflow.py` as the product
+runtime.
 
 ### Runner POC
 
@@ -318,7 +324,8 @@ source observation to human gate, packet, run, evidence, and next state.
 
 ## How The Pieces Line Up Today
 
-Today, the only realistic Hoisa-assisted development path is still manual:
+Today, the Hoisa repository is developed through a manual GitHub-assisted
+contributor workflow:
 
 1. A human or agent creates a GitHub issue using the task or spike template.
 2. `scripts/github/agent_workflow.py next` reads GitHub Project state and picks
@@ -330,13 +337,14 @@ Today, the only realistic Hoisa-assisted development path is still manual:
 6. A human comments `approved`, `request changes`, or `request review`.
 7. The helper syncs that signal and moves the issue to implementation, planning,
    or review.
-8. An implementer works mostly through normal coding-agent behavior, not through
-   Hoisa package runtime.
+8. An implementer works mostly through normal coding-agent behavior and the
+   contributor workflow, not through Hoisa product runtime.
 9. The helper can commit, push, create a PR, read checks and reviews, and post a
    handoff.
 
-This proves a workflow discipline. It does not yet prove a self-hosting
-orchestration product.
+This proves a workflow discipline for building Hoisa. It does not yet prove a
+self-hosting orchestration product, and the helper should not be presented as
+the product.
 
 The package code points to the next version:
 
@@ -352,8 +360,9 @@ The package code points to the next version:
 9. A runner adapter executes the packet.
 10. `AgentRun`, `EvidenceBundle`, and `WorkflowEvent` record what happened.
 
-The roadmap should connect those two worlds: preserve the workflow discipline of
-the helper, but move the product runtime into package services and adapters.
+The roadmap should keep those worlds distinct: preserve the contributor workflow
+that helps build Hoisa, while building the Hoisa product runtime through package
+services and adapters.
 
 ## Proposed End-To-End Demo Flow
 
@@ -558,25 +567,27 @@ It should not feel like:
 
 ## What To Simplify Because Compatibility Is Not Needed
 
-The repository can get cleaner by removing early compatibility and helper-era
-concepts as soon as a better integrated path exists.
+The product path can get cleaner by removing early compatibility concepts as
+soon as a better integrated path exists.
 
 Recommended simplifications:
 
 - Remove legacy `Plan State` compatibility once `Workflow Stage` and
   `Review Route` are canonical everywhere.
-- Move GitHub selection, approval, transition, and issue-quality policy out of
-  `scripts/github/agent_workflow.py` and into package services.
-- Keep GitHub REST/GraphQL side effects in a GitHub adapter, not mixed with
-  product policy.
+- Keep product GitHub selection, approval, transition, and issue-quality policy
+  in package services. The contributor helper may call those services, but it
+  should not define product behavior by itself.
+- Keep product GitHub REST/GraphQL side effects in a GitHub adapter, not mixed
+  with product policy or hidden inside contributor tooling.
 - Replace script-level POC runner coupling with a real runner port and a Docker
   Codex adapter.
 - Treat public schemas as versionable but breakable until one complete demo
   flow emits them.
 - Keep issue comments short and evidence-linked; stop encoding mutable workflow
   state in prose.
-- Prefer one coherent `hoisa` command surface over many helper-specific command
-  names once package runtime exists.
+- Prefer one coherent `hoisa` command surface for product runtime. Keep
+  contributor helper commands separate if they remain useful for working on the
+  Hoisa repository.
 
 This is not a call for a broad rewrite before value. It is a reminder that the
 first useful loop should be allowed to reshape early artifacts instead of
@@ -610,10 +621,10 @@ Acceptance criteria:
 
 This task turns the current pieces into a product demonstration.
 
-### 2. Replace The GitHub Helper With Package Services And A GitHub Adapter
+### 2. Build Product GitHub Services And Adapters
 
-Goal: preserve the proven GitHub workflow while moving stable behavior into the
-package architecture.
+Goal: build the product GitHub integration through package services and adapters
+without confusing it with the repo-local contributor helper.
 
 Suggested shape:
 
@@ -622,12 +633,15 @@ Suggested shape:
 - tracker/write adapter performs explicit approved writes;
 - package services own selection, transitions, quality checks, approval sync,
   active-work summaries, and PR handoff decisions;
-- the existing helper becomes a thin compatibility CLI or is deleted once the
-  new command surface covers its useful operations.
+- the existing helper may call product services where useful, but it can also
+  remain separate contributor tooling for the Hoisa repository.
 
 Acceptance criteria:
 
-- no product policy lives only in `scripts/github/agent_workflow.py`;
+- product runtime does not require importing or executing
+  `scripts/github/agent_workflow.py`;
+- product policy used by the runtime lives in package services with focused
+  tests, not only in contributor tooling;
 - GitHub API details do not enter domain or application services;
 - tests can run selection, transitions, gate sync, and active-work reporting
   without GitHub network access;
@@ -736,8 +750,9 @@ projects.
 
 1. **Manual integrated loop**: wire existing components for one issue and one
    Docker runner attempt, even if invoked with a manual `--once` command.
-2. **GitHub adapter extraction**: move helper policy into package services and
-   leave GitHub side effects behind explicit adapter methods.
+2. **Product GitHub integration**: implement package services and adapters for
+   GitHub-backed source sync, tracker writes, gates, and PR evidence while
+   keeping contributor tooling conceptually separate.
 3. **Durable gate system**: create, render, decide, expire, and audit gates.
 4. **Runner and evidence pipeline**: stabilize the Docker Codex adapter and the
    run/evidence/event output contract.
