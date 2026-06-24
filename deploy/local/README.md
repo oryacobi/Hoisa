@@ -52,6 +52,26 @@ To reset the throwaway local database, stop Compose and intentionally delete
 `deploy/local/data/mongodb/`. Do not commit, paste, or share files from
 `deploy/local/data/`; they are private local state.
 
+## Clean DB Bootstrap
+
+The current local handoff path is:
+
+1. Create or refresh ignored private credentials in `deploy/local/.env`.
+2. Stop MongoDB with `docker compose --env-file .env down` from this directory.
+3. Delete the throwaway local data directory: `deploy/local/data/mongodb/`.
+4. Start MongoDB again with `docker compose --env-file .env up -d`.
+5. Validate the service with `docker compose --env-file .env ps`.
+6. From the repository root, source `deploy/local/.env` and run:
+
+```bash
+uv run python scripts/github/bootstrap_connection.py \
+  --config deploy/local/secrets/github/hoisa.json \
+  --apply
+```
+
+That leaves the fresh database with repository issue source metadata and GitHub
+tool-control records. It does not import issues.
+
 ## Connection Shape
 
 Use placeholders when documenting or sharing connection strings:
@@ -97,6 +117,68 @@ Public Hoisa docs, plans, fixtures, support bundles, screenshots, and issue or
 PR comments must not include private database contents, real credentials, raw
 logs, private target-repo identifiers, or local worktree paths.
 
+## GitHub Repository Issue Connection Bootstrap
+
+Private GitHub connection manifests and GitHub App private keys belong under
+ignored local state:
+
+```text
+deploy/local/secrets/github/
+```
+
+Use `docs/examples/github-bootstrap-manifest.example.json` as the public-safe
+shape, then create a private manifest and private key file in the ignored
+directory. The manifest stores GitHub App IDs, installation IDs, repository
+selectors, and an opaque `credential_ref`; the PEM file stores the GitHub App
+private key. Do not commit or paste either private file.
+
+Configure the GitHub App permissions from
+`docs/examples/github-app-permissions.md`. The bootstrap path validates
+repository metadata and issue reads only. Hoisa's broader workflow helper still
+needs write-capable repository access for comments, issue labels and assignees,
+PRs, reviews, workflow file updates, and branch pushes.
+
+Validate GitHub access without writing DB records:
+
+```bash
+uv run python scripts/github/bootstrap_connection.py \
+  --config deploy/local/secrets/github/hoisa.json
+```
+
+Seed a clean local DB with connection metadata after validation:
+
+```bash
+uv run python scripts/github/bootstrap_connection.py \
+  --config deploy/local/secrets/github/hoisa.json \
+  --apply
+```
+
+The command prints only a redacted summary. It stores public-safe Hoisa
+connection records with opaque credential references; it does not import issues,
+store tokens, store private keys, inspect project boards, or perform GitHub
+mutations during bootstrap validation.
+
+## Codex MongoDB MCP
+
+For session-time DB inspection, Codex can load the MongoDB MCP server as
+`mongodb_hoisa_local`. Keep the active MCP registration in user-level Codex
+config, not in this public repo. The server should:
+
+- run in read-only mode;
+- source this repo's ignored `deploy/local/.env`;
+- map `MONGODB_URI` to `MDB_MCP_CONNECTION_STRING`;
+- use the official `mongodb-mcp-server` package.
+
+Safe MCP checks for a fresh session:
+
+- list databases and confirm `hoisa` exists;
+- list collections in `hoisa`;
+- read `source_connections` with a projection limited to `display_name`,
+  `status`, `resource_type`, and `credential_ref`.
+
+Do not paste connection strings, expanded environment values, raw DB documents,
+or private target-repo details into public artifacts.
+
 ## Open Operations Questions
 
 Backup, retention, restore, credential rotation automation, schemas, indexes,
@@ -126,7 +208,7 @@ uv run python scripts/poc_docker_agent_run.py \
 ```
 
 Run a bounded Codex agent smoke with only the context it needs. The prompt below
-does not include GitHub issue, Project, plan, gate, or workflow-helper context:
+does not include tracker item, plan, gate, or workflow-helper context:
 
 ```bash
 uv run python scripts/poc_docker_agent_run.py \

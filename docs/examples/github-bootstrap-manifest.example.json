@@ -1,0 +1,11 @@
+{
+  "credential_ref": "local:github-example-workflow",
+  "app_id": 123456,
+  "installation_id": 987654,
+  "private_key_file": "example.private-key.pem",
+  "repo_owner": "example-org",
+  "repo_name": "example-repo",
+  "repo_visibility": "private",
+  "hoisa_project_name": "Example Hoisa Project",
+  "api_base_url": "https://api.github.com"
+}

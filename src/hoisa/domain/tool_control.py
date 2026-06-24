@@ -6,6 +6,7 @@ from typing import ClassVar
 from antonic import AntDoc, AntIndex
 from pydantic import Field
 
+from hoisa.domain.credentials import CredentialRef
 from hoisa.domain.evidence import EvidenceRef
 from hoisa.domain.models import ASCENDING, RecordId, UtcDatetime
 from hoisa.domain.privacy import PublicSafetyClass, RedactionStatus
@@ -60,6 +61,7 @@ class ToolConnection(AntDoc):
     tool_type: str = Field(min_length=1)
     display_name: str = Field(min_length=1)
     status: ToolConnectionStatus
+    credential_ref: CredentialRef | None = None
     allowed_action_summaries: tuple[str, ...] = ()
     source_provenance: SourceProvenance
     public_safety: PublicSafetyClass

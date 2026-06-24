@@ -6,6 +6,7 @@ from typing import ClassVar
 from antonic import AntDoc, AntIndex
 from pydantic import Field
 
+from hoisa.domain.credentials import CredentialRef
 from hoisa.domain.models import ASCENDING, RecordId
 from hoisa.domain.privacy import PublicSafetyClass, RedactionStatus
 from hoisa.domain.provenance import ContentHash, SourceProvenance, SourceSystem
@@ -22,6 +23,12 @@ class SourceConnectionStatus(StrEnum):
     ARCHIVED = "archived"
 
 
+class SourceConnectionResourceType(StrEnum):
+    """Provider resource type observed through a source connection."""
+
+    GITHUB_REPOSITORY_ISSUES = "github_repository_issues"
+
+
 class SourceConnection(AntDoc):
     """Configured source Hoisa observes before reducing records."""
 
@@ -33,6 +40,10 @@ class SourceConnection(AntDoc):
     display_name: str = Field(min_length=1)
     status: SourceConnectionStatus
     target_repo: TargetRepoRef | None = None
+    resource_type: SourceConnectionResourceType | None = None
+    external_node_id: str | None = Field(default=None, min_length=1)
+    display_url: str | None = None
+    credential_ref: CredentialRef | None = None
     source_provenance: SourceProvenance
     public_safety: PublicSafetyClass
     redaction_status: RedactionStatus
