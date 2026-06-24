@@ -1,0 +1,193 @@
+{
+  "flow_id": "coding_feature",
+  "title": "Coding Feature",
+  "version": "1",
+  "summary": "Default flow for implementing a bounded software change with planning, review, approval, implementation, verification, and completion.",
+  "default": true,
+  "selection_signals": [
+    "feature request",
+    "bug fix",
+    "code change",
+    "repository implementation",
+    "tests or refactor"
+  ],
+  "start_step_id": "plan",
+  "steps": [
+    {
+      "step_id": "plan",
+      "title": "Plan",
+      "owner": "agent",
+      "purpose": "Turn the task into a bounded implementation plan with files, checks, risks, and out-of-scope items.",
+      "runner_role": "planner",
+      "allowed_actions": [
+        "read_repo_context",
+        "write_plan_artifact"
+      ],
+      "required_evidence": [
+        "implementation_plan",
+        "issue_quality_summary"
+      ],
+      "transitions": [
+        {
+          "signal": "plan_posted",
+          "to_step_id": "plan_review",
+          "description": "Plan is ready for independent review."
+        },
+        {
+          "signal": "skip_review",
+          "to_step_id": "plan_approval",
+          "description": "Policy allows direct human approval without agent plan review."
+        }
+      ]
+    },
+    {
+      "step_id": "plan_review",
+      "title": "Review Plan",
+      "owner": "agent",
+      "purpose": "Review the plan from durable evidence and decide whether it is ready for human approval.",
+      "runner_role": "reviewer",
+      "allowed_actions": [
+        "read_plan_artifact",
+        "write_review_summary"
+      ],
+      "required_evidence": [
+        "plan_review_summary"
+      ],
+      "transitions": [
+        {
+          "signal": "review_ready",
+          "to_step_id": "plan_approval",
+          "description": "Reviewer says the plan is ready for human approval."
+        },
+        {
+          "signal": "changes_requested",
+          "to_step_id": "plan",
+          "description": "Reviewer requests plan changes."
+        }
+      ]
+    },
+    {
+      "step_id": "plan_approval",
+      "title": "Approve Plan",
+      "owner": "human",
+      "purpose": "Grant exact authority to implement the approved plan.",
+      "gate_type": "plan_approval",
+      "required_evidence": [
+        "implementation_plan",
+        "plan_review_or_skip_policy_summary"
+      ],
+      "transitions": [
+        {
+          "signal": "approved",
+          "to_step_id": "implement",
+          "description": "Human grants implementation authority."
+        },
+        {
+          "signal": "changes_requested",
+          "to_step_id": "plan",
+          "description": "Human requests plan changes."
+        },
+        {
+          "signal": "fresh_review_requested",
+          "to_step_id": "plan_review",
+          "description": "Human asks for another agent review before approval."
+        }
+      ]
+    },
+    {
+      "step_id": "implement",
+      "title": "Implement",
+      "owner": "agent",
+      "purpose": "Make the approved code change and collect verification evidence.",
+      "runner_role": "implementer",
+      "allowed_actions": [
+        "edit_repo_files",
+        "run_required_checks",
+        "open_pull_request"
+      ],
+      "required_evidence": [
+        "diff_summary",
+        "check_summary",
+        "pull_request_ref"
+      ],
+      "transitions": [
+        {
+          "signal": "implementation_complete",
+          "to_step_id": "implementation_review",
+          "description": "Implementation is ready for independent review."
+        },
+        {
+          "signal": "skip_review",
+          "to_step_id": "human_verification",
+          "description": "Policy allows direct human verification without implementation review."
+        }
+      ]
+    },
+    {
+      "step_id": "implementation_review",
+      "title": "Review Implementation",
+      "owner": "agent",
+      "purpose": "Review the implementation, checks, and approved plan from durable evidence.",
+      "runner_role": "reviewer",
+      "allowed_actions": [
+        "read_diff",
+        "read_checks",
+        "write_review_summary"
+      ],
+      "required_evidence": [
+        "implementation_review_summary"
+      ],
+      "transitions": [
+        {
+          "signal": "review_ready",
+          "to_step_id": "human_verification",
+          "description": "Reviewer says the implementation is ready for human verification."
+        },
+        {
+          "signal": "changes_requested",
+          "to_step_id": "implement",
+          "description": "Reviewer requests implementation changes."
+        }
+      ]
+    },
+    {
+      "step_id": "human_verification",
+      "title": "Human Verification",
+      "owner": "human",
+      "purpose": "Confirm the implementation is ready to close or merge according to project policy.",
+      "gate_type": "merge_readiness",
+      "required_evidence": [
+        "pull_request_ref",
+        "check_summary",
+        "implementation_review_or_skip_policy_summary"
+      ],
+      "transitions": [
+        {
+          "signal": "approved",
+          "to_step_id": "done",
+          "description": "Human accepts the completed work."
+        },
+        {
+          "signal": "changes_requested",
+          "to_step_id": "implement",
+          "description": "Human requests implementation changes."
+        },
+        {
+          "signal": "fresh_review_requested",
+          "to_step_id": "implementation_review",
+          "description": "Human asks for another implementation review."
+        }
+      ]
+    },
+    {
+      "step_id": "done",
+      "title": "Done",
+      "owner": "hoisa",
+      "purpose": "Record completion after required evidence and gates are satisfied.",
+      "required_evidence": [
+        "completion_event"
+      ],
+      "transitions": []
+    }
+  ]
+}

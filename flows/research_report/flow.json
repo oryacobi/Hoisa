@@ -1,0 +1,182 @@
+{
+  "flow_id": "research_report",
+  "title": "Research Report",
+  "version": "1",
+  "summary": "Flow for answering a research question through source gathering, report drafting, claim verification, and human review.",
+  "default": false,
+  "selection_signals": [
+    "research question",
+    "web search",
+    "source review",
+    "report",
+    "verify claims"
+  ],
+  "start_step_id": "scope_question",
+  "steps": [
+    {
+      "step_id": "scope_question",
+      "title": "Scope Question",
+      "owner": "agent",
+      "purpose": "Turn the human request into a bounded research question, source strategy, and report shape.",
+      "runner_role": "research_planner",
+      "allowed_actions": [
+        "read_directive",
+        "write_research_scope"
+      ],
+      "required_evidence": [
+        "research_scope"
+      ],
+      "transitions": [
+        {
+          "signal": "scope_ready",
+          "to_step_id": "source_research",
+          "description": "Research scope is ready for source gathering."
+        },
+        {
+          "signal": "needs_human_clarification",
+          "to_step_id": "human_clarification",
+          "description": "The request is too ambiguous to research safely."
+        }
+      ]
+    },
+    {
+      "step_id": "human_clarification",
+      "title": "Human Clarification",
+      "owner": "human",
+      "purpose": "Resolve ambiguity before research begins.",
+      "gate_type": "scope_change",
+      "required_evidence": [
+        "research_scope"
+      ],
+      "transitions": [
+        {
+          "signal": "clarified",
+          "to_step_id": "scope_question",
+          "description": "Human clarification should be folded into a revised scope."
+        },
+        {
+          "signal": "deferred",
+          "to_step_id": "done",
+          "description": "Human defers the research task."
+        }
+      ]
+    },
+    {
+      "step_id": "source_research",
+      "title": "Source Research",
+      "owner": "agent",
+      "purpose": "Gather relevant sources and summarize source quality without treating unverified claims as final.",
+      "runner_role": "researcher",
+      "allowed_actions": [
+        "web_search",
+        "read_public_sources",
+        "write_source_notes"
+      ],
+      "required_evidence": [
+        "source_list",
+        "source_notes"
+      ],
+      "transitions": [
+        {
+          "signal": "sources_collected",
+          "to_step_id": "draft_report",
+          "description": "Enough sources exist to draft the report."
+        },
+        {
+          "signal": "insufficient_sources",
+          "to_step_id": "human_review",
+          "description": "The source search found insufficient evidence and needs human review."
+        }
+      ]
+    },
+    {
+      "step_id": "draft_report",
+      "title": "Draft Report",
+      "owner": "agent",
+      "purpose": "Write a concise report grounded in cited evidence.",
+      "runner_role": "research_writer",
+      "allowed_actions": [
+        "write_report_draft",
+        "cite_sources"
+      ],
+      "required_evidence": [
+        "report_draft",
+        "citation_list"
+      ],
+      "transitions": [
+        {
+          "signal": "draft_ready",
+          "to_step_id": "verify_claims",
+          "description": "Draft is ready for claim verification."
+        }
+      ]
+    },
+    {
+      "step_id": "verify_claims",
+      "title": "Verify Claims",
+      "owner": "agent",
+      "purpose": "Check important claims against the gathered sources and flag uncertainty.",
+      "runner_role": "research_reviewer",
+      "allowed_actions": [
+        "read_report_draft",
+        "read_sources",
+        "write_claim_check"
+      ],
+      "required_evidence": [
+        "claim_check_summary",
+        "uncertainty_notes"
+      ],
+      "transitions": [
+        {
+          "signal": "verified",
+          "to_step_id": "human_review",
+          "description": "Claims are verified enough for human review."
+        },
+        {
+          "signal": "revisions_needed",
+          "to_step_id": "draft_report",
+          "description": "Claim verification found report issues that need revision."
+        }
+      ]
+    },
+    {
+      "step_id": "human_review",
+      "title": "Human Review",
+      "owner": "human",
+      "purpose": "Accept the report, request revisions, or defer the research result.",
+      "gate_type": "report_acceptance",
+      "required_evidence": [
+        "report_or_insufficient_sources_summary",
+        "source_list",
+        "claim_check_or_uncertainty_summary"
+      ],
+      "transitions": [
+        {
+          "signal": "approved",
+          "to_step_id": "done",
+          "description": "Human accepts the report."
+        },
+        {
+          "signal": "changes_requested",
+          "to_step_id": "draft_report",
+          "description": "Human requests report revisions."
+        },
+        {
+          "signal": "fresh_review_requested",
+          "to_step_id": "verify_claims",
+          "description": "Human asks for another claim verification pass."
+        }
+      ]
+    },
+    {
+      "step_id": "done",
+      "title": "Done",
+      "owner": "hoisa",
+      "purpose": "Record report completion or deferral with evidence.",
+      "required_evidence": [
+        "completion_event"
+      ],
+      "transitions": []
+    }
+  ]
+}
