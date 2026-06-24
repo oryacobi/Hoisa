@@ -72,6 +72,15 @@ uv run python scripts/github/bootstrap_connection.py \
 That leaves the fresh database with repository issue source metadata and GitHub
 tool-control records. It does not import issues.
 
+7. Import repository issues into source observations, work items, workflow
+   states, and a source-sync event:
+
+```bash
+uv run python scripts/github/sync_issues.py \
+  --config deploy/local/secrets/github/hoisa.json \
+  --apply
+```
+
 ## Connection Shape
 
 Use placeholders when documenting or sharing connection strings:
@@ -157,6 +166,18 @@ The command prints only a redacted summary. It stores public-safe Hoisa
 connection records with opaque credential references; it does not import issues,
 store tokens, store private keys, inspect project boards, or perform GitHub
 mutations during bootstrap validation.
+
+After bootstrap, import issues with:
+
+```bash
+uv run python scripts/github/sync_issues.py \
+  --config deploy/local/secrets/github/hoisa.json \
+  --apply
+```
+
+The issue sync command reads GitHub issues, filters out pull requests returned
+by the Issues API, and stores source observations plus canonical Hoisa work
+records. It prints a redacted summary and performs no GitHub mutations.
 
 ## Codex MongoDB MCP
 

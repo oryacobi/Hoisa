@@ -13,6 +13,7 @@ from hoisa.app.services.github_connection_bootstrap import (
 )
 from hoisa.domain.target_repos import RepositoryVisibility
 from hoisa.ports.credentials import GitHubAppCredentialMaterial
+from hoisa.ports.source_sync import GitHubIssueSyncRequest
 
 
 def test_generate_github_app_jwt_uses_app_id_and_short_expiry() -> None:
@@ -61,6 +62,34 @@ def test_github_app_client_rejects_unexpected_issues_response() -> None:
         raise AssertionError("Expected invalid issue response to fail validation.")
 
 
+def test_github_app_client_lists_repository_issues_with_pagination_since_and_pr_filtering() -> None:
+    first_page = (
+        *(_raw_issue(number) for number in range(1, 100)),
+        _raw_issue(100, pull_request=True),
+    )
+    second_page = (_raw_issue(101),)
+    client = _FakeGitHubClient(issue_pages=(first_page, second_page))
+
+    issues = client.list_repository_issues(
+        GitHubIssueSyncRequest(
+            credential_ref="local:github-example-workflow",
+            repo_owner="example-org",
+            repo_name="example-repo",
+            since=datetime(2026, 6, 23, 12, 5, tzinfo=UTC),
+        )
+    )
+
+    paths = [call["path"] for call in client.calls]
+
+    assert len(issues) == 100
+    assert {issue.number for issue in issues} == set(range(1, 100)) | {101}
+    assert [call["path"] for call in client.calls].count(
+        "/app/installations/456/access_tokens"
+    ) == 1
+    assert any("page=1" in path and "since=2026-06-23T12%3A05%3A00Z" in path for path in paths)
+    assert any("page=2" in path for path in paths)
+
+
 class _FakeResolver:
     def resolve_github_app(self, credential_ref: str) -> GitHubAppCredentialMaterial:
         assert credential_ref == "local:github-example-workflow"
@@ -68,12 +97,18 @@ class _FakeResolver:
 
 
 class _FakeGitHubClient(GitHubAppInstallationClient):
-    def __init__(self, *, issue_response: Any = None) -> None:
+    def __init__(
+        self,
+        *,
+        issue_response: Any = None,
+        issue_pages: tuple[tuple[dict[str, Any], ...], ...] = (),
+    ) -> None:
         super().__init__(
             credential_resolver=_FakeResolver(),
             now=lambda: datetime(2026, 6, 23, 12, 0, tzinfo=UTC),
         )
         self.issue_response = [] if issue_response is None else issue_response
+        self.issue_pages = issue_pages
         self.installation_access = "fake-installation-access"
         self.calls: list[dict[str, Any]] = []
 
@@ -111,7 +146,35 @@ class _FakeGitHubClient(GitHubAppInstallationClient):
         if path == "/repos/example-org/example-repo/issues?state=all&per_page=1":
             assert token == self.installation_access
             return self.issue_response
+        if path.startswith("/repos/example-org/example-repo/issues?"):
+            assert token == self.installation_access
+            page = 1
+            if "page=2" in path:
+                page = 2
+            if not self.issue_pages:
+                return []
+            return list(self.issue_pages[page - 1])
         raise AssertionError(f"Unexpected GitHub path: {path}")
+
+
+def _raw_issue(number: int, *, pull_request: bool = False) -> dict[str, Any]:
+    raw: dict[str, Any] = {
+        "id": number,
+        "node_id": f"I_{number}",
+        "number": number,
+        "title": f"Issue {number}",
+        "body": f"Body {number}",
+        "state": "open",
+        "html_url": f"https://github.com/example-org/example-repo/issues/{number}",
+        "labels": [{"name": "type:task"}, "agent:codex"],
+        "author_association": "OWNER",
+        "created_at": "2026-06-23T12:00:00Z",
+        "updated_at": f"2026-06-23T12:{number % 60:02d}:00Z",
+        "closed_at": None,
+    }
+    if pull_request:
+        raw["pull_request"] = {"url": "https://api.github.com/pulls/100"}
+    return raw
 
 
 def _request() -> GitHubBootstrapRequest:

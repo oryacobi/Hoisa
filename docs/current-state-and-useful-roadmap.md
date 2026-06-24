@@ -55,7 +55,7 @@ What exists today:
 | Pure workflow policy | Stage transitions, next-work selection, and issue quality/risk/trust checks are implemented as testable services. | `src/hoisa/domain/workflow_transitions.py`, `src/hoisa/app/workflows/select_next_work.py`, `src/hoisa/app/services/issue_quality.py` |
 | Persistence | Hoisa has a persistence port, workflow query helpers, an in-memory adapter, and an Antonic/Mongo adapter. | `src/hoisa/ports/persistence.py`, `src/hoisa/adapters/persistence/` |
 | Local DB bootstrap | A fresh local MongoDB can be reinitialized from ignored local config and seeded with GitHub repository issue connection records. | `deploy/local/README.md`, `scripts/github/bootstrap_connection.py` |
-| GitHub repo issue connection | The bootstrap validates GitHub App repository metadata and issue read access, then stores `TargetRepo`, `SourceConnection`, `SyncCursor`, `ToolConnection`, and `ToolPolicy` records. It does not import issues. | `src/hoisa/app/services/github_connection_bootstrap.py`, `src/hoisa/adapters/external_sources/github.py` |
+| GitHub repo issue connection | The bootstrap validates GitHub App repository metadata and issue read access, then stores `TargetRepo`, `SourceConnection`, `SyncCursor`, `ToolConnection`, and `ToolPolicy` records. A follow-up sync imports non-PR repository issues into source observations, work items, workflow states, and a source-sync event. | `src/hoisa/app/services/github_connection_bootstrap.py`, `src/hoisa/app/services/github_issue_sync.py`, `scripts/github/sync_issues.py` |
 | DB inspection | Codex sessions can inspect the local Hoisa database through a read-only MongoDB MCP server named `mongodb_hoisa_local` when the user-level MCP config is loaded. | `deploy/local/README.md` |
 | Public schemas | Seven public boundary records have JSON schemas and fixtures. | `src/hoisa/schemas/public/`, `tests/fixtures/public/` |
 | Coding handoff | A `TaskPacket` can be rendered into deterministic coding-runner input. | `src/hoisa/app/services/coding_handoff.py` |
@@ -64,8 +64,6 @@ What exists today:
 
 What does not exist yet:
 
-- no committed product source-sync loop that reduces GitHub tracker facts into
-  canonical `WorkItem` and `WorkflowStateRecord` records;
 - no app-level orchestrator that composes sync, selection, gates, packet
   creation, runner execution, evidence, and transitions;
 - no real approval-gate lifecycle service with persisted creation, rendering,

@@ -7,6 +7,7 @@ import hashlib
 import json
 from typing import Any
 from urllib.error import HTTPError, URLError
+from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 from hoisa.app.services.github_connection_bootstrap import (
@@ -16,6 +17,7 @@ from hoisa.app.services.github_connection_bootstrap import (
 from hoisa.domain.credentials import CredentialRef
 from hoisa.domain.target_repos import RepositoryVisibility
 from hoisa.ports.credentials import CredentialResolver, GitHubAppCredentialMaterial
+from hoisa.ports.source_sync import GitHubIssueSnapshot, GitHubIssueSyncRequest
 
 GITHUB_API_VERSION = "2026-03-10"
 
@@ -65,6 +67,43 @@ class GitHubAppInstallationClient:
             repo_visibility=_repo_visibility(repo, request.repo_visibility),
             issue_access_checked=True,
         )
+
+    def list_repository_issues(
+        self,
+        request: GitHubIssueSyncRequest,
+    ) -> list[GitHubIssueSnapshot]:
+        """Return non-PR repository issues in ascending updated order."""
+
+        token = self._installation_token(request.credential_ref)
+        issues: list[GitHubIssueSnapshot] = []
+        page = 1
+        while True:
+            query: dict[str, str | int] = {
+                "state": "all",
+                "sort": "updated",
+                "direction": "asc",
+                "per_page": 100,
+                "page": page,
+            }
+            if request.since is not None:
+                query["since"] = _format_github_datetime(request.since)
+            payload = self._request_json(
+                "GET",
+                f"/repos/{request.repo_owner}/{request.repo_name}/issues?{urlencode(query)}",
+                token=token,
+            )
+            if not isinstance(payload, list):
+                raise GitHubApiError("GitHub issue list response was not a list.")
+            for raw_issue in payload:
+                if not isinstance(raw_issue, dict):
+                    raise GitHubApiError("GitHub issue list contained a non-object item.")
+                if "pull_request" in raw_issue:
+                    continue
+                issues.append(_github_issue_snapshot(raw_issue))
+            if len(payload) < 100:
+                break
+            page += 1
+        return issues
 
     def _installation_token(self, credential_ref: CredentialRef) -> str:
         cached = self._token_cache.get(credential_ref)
@@ -302,6 +341,52 @@ def _parse_github_datetime(value: str) -> datetime:
     return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(UTC)
 
 
+def _format_github_datetime(value: datetime) -> str:
+    return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
+
+
+def _github_issue_snapshot(raw: dict[str, Any]) -> GitHubIssueSnapshot:
+    number = _required_int(raw.get("number"), "issue number")
+    created_at = _parse_github_datetime(_required_string(raw.get("created_at"), "created_at"))
+    updated_at = _parse_github_datetime(_required_string(raw.get("updated_at"), "updated_at"))
+    closed_at = _optional_datetime(raw.get("closed_at"))
+    return GitHubIssueSnapshot(
+        number=number,
+        node_id=_optional_string(raw.get("node_id")) or str(raw.get("id") or number),
+        title=_required_string(raw.get("title"), "issue title"),
+        body=_optional_string(raw.get("body")) or "",
+        state=_required_string(raw.get("state"), "issue state"),
+        html_url=_optional_string(raw.get("html_url"))
+        or _required_string(raw.get("url"), "issue url"),
+        labels=_issue_labels(raw.get("labels")),
+        author_association=_optional_string(raw.get("author_association")) or "",
+        created_at=created_at,
+        updated_at=updated_at,
+        closed_at=closed_at,
+        is_pull_request=False,
+    )
+
+
+def _issue_labels(raw: Any) -> tuple[str, ...]:
+    if not isinstance(raw, list):
+        return ()
+    labels: list[str] = []
+    for item in raw:
+        if isinstance(item, str):
+            labels.append(item)
+            continue
+        if isinstance(item, dict):
+            name = _optional_string(item.get("name"))
+            if name:
+                labels.append(name)
+    return tuple(labels)
+
+
+def _optional_datetime(value: Any) -> datetime | None:
+    text = _optional_string(value)
+    return _parse_github_datetime(text) if text else None
+
+
 def _base64url_json(value: dict[str, Any]) -> str:
     return _base64url(json.dumps(value, separators=(",", ":"), sort_keys=True).encode("utf-8"))
 
@@ -315,6 +400,12 @@ def _required_string(value: Any, label: str) -> str:
     if not text:
         raise GitHubApiError(f"Missing {label} in GitHub response.")
     return text
+
+
+def _required_int(value: Any, label: str) -> int:
+    if not isinstance(value, int):
+        raise GitHubApiError(f"Missing {label} in GitHub response.")
+    return value
 
 
 def _optional_string(value: Any) -> str | None:
